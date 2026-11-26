@@ -40,10 +40,6 @@ Music words in Lou's speech bubble turn into chips such as *? chord* and *? octa
 
 Lou in the app is drawn from the same artwork as the banner ([docs/lou.svg](docs/lou.svg)). He has nine moods. He breathes, blinks, looks around and sways his hands and feet, and his speaker pumps on the beat.
 
-<div align="center">
-<img src="docs/lou-moods-preview.gif" alt="Lou's nine moods: idle, listen, happy, cheer, think, surprised, encourage, sleepy, dance" width="520">
-</div>
-
 ## Screenshots
 
 <div align="center">
