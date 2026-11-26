@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Lou, the guide: teal gumdrop body, belly, woofer, sleepy eyes, Aero gloss. Drawn for the 108dp adaptive canvas (safe zone 66dp). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#33000000" android:pathData="M30,82 a24,4 0 1,0 48,0 a24,4 0 1,0 -48,0z"/>
+    <path android:pathData="M28,80 C26,58 34,30 54,30 C74,30 82,58 80,80 C78,83 30,83 28,80 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="54" android:startY="30" android:endX="54" android:endY="82">
+                <item android:offset="0" android:color="#FF2BB3B0"/>
+                <item android:offset="1" android:color="#FF0F7E86"/>
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path android:fillColor="#FF7FE0D2" android:pathData="M38,66 a16,13 0 1,0 32,0 a16,13 0 1,0 -32,0z"/>
+    <path android:fillColor="#FF173D41" android:pathData="M45.5,67 a8.5,8.5 0 1,0 17,0 a8.5,8.5 0 1,0 -17,0z"/>
+    <path android:fillColor="#FF4C6265" android:pathData="M47.5,67 a6.5,6.5 0 1,0 13,0 a6.5,6.5 0 1,0 -13,0z"/>
+    <path android:fillColor="#FF8FA3A6" android:pathData="M51.5,67 a2.5,2.5 0 1,0 5,0 a2.5,2.5 0 1,0 -5,0z"/>
+    <path android:fillColor="#FFFFFFFF" android:pathData="M41,48 a5,5 0 1,0 10,0 a5,5 0 1,0 -10,0z M57,48 a5,5 0 1,0 10,0 a5,5 0 1,0 -10,0z"/>
+    <path android:fillColor="#FF0E2A2E" android:pathData="M43.5,49 a2.8,2.8 0 1,0 5.6,0 a2.8,2.8 0 1,0 -5.6,0z M59.5,49 a2.8,2.8 0 1,0 5.6,0 a2.8,2.8 0 1,0 -5.6,0z"/>
+    <path android:fillColor="#FF26A6A4" android:pathData="M41,48 a5,5 0 0,1 10,0 z M57,48 a5,5 0 0,1 10,0 z"/>
+    <path android:strokeColor="#FF0E2A2E" android:strokeWidth="1.4" android:strokeLineCap="round" android:pathData="M50,56 Q54,59 58,56"/>
+    <path android:fillColor="#73FFFFFF" android:pathData="M38,42 C40,34 48,32 56,33 C50,35 44,38 40,44 Z"/>
+</vector>

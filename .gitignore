@@ -1,0 +1,18 @@
+# Build output
+android/.gradle/
+android/build/
+android/app/build/
+android/.kotlin/
+android/local.properties
+android/.idea/
+*.iml
+captures/
+android/tools/ui-check/out/
+android/tools/ui-check/__pycache__/
+
+# Binaries are attached to GitHub Releases instead of the repo
+*.apk
+*.aab
+
+# OS
+.DS_Store
