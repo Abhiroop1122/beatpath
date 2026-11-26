@@ -1,10 +1,11 @@
-# Beatpath 1.0.0 for Android
+# Beatpath 1.0.1 for Android
 
 Beatpath teaches music theory and melody writing step by step, with an FL Studio-style Studio to practice in. It's written in Kotlin with Jetpack Compose.
 The design file is `../fl duolingo.pen` and the research notes are in `../research/`.
 
 ## Lou
-- Lou is drawn in code, and his poses blend from one mood to the next.
+- Lou is drawn from the exact paths of `../docs/lou.svg` (`ui/lou/LouArt.kt`), the same artwork as the GitHub banner, and `ui/lou/Lou.kt` animates the parts. His poses blend from one mood to the next.
+- He breathes, blinks, looks around, and sways his hands and feet. The hands and feet are cut out of the body outline on a separate layer and redrawn a few degrees rotated, so nothing opens up in the body.
 - He doesn't talk out loud. What he says appears in his speech bubble, and he reacts with short chirps (happy, "hmm", surprised, yawn).
 - To see every mood, open the dev gallery: `adb shell am start -n com.beatpath.app/.MainActivity --ez lou_gallery true`.
 

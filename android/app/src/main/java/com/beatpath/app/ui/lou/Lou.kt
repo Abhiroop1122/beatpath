@@ -22,6 +22,8 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -71,9 +73,9 @@ private class Pose {
 }
 
 /**
- * Lou, the guide: a big teal sub-bass creature with a woofer belly, drawn from layered parts so each
- * part moves on its own: breathing, eased blinks every 2–6 s, soft look-around, word-synced mouth,
- * a cheer jump with anticipation and landing squash, and a beat-locked bounce + woofer pump.
+ * Lou, the guide, drawn from his exact SVG artwork (docs/lou.svg, the GitHub banner's Lou). His parts move
+ * on their own: breathing, eased blinks every 2 to 6 s, look-arounds, mood lids and mouth, a talking
+ * mouth, a cheer jump with anticipation and landing squash, and a beat-locked bounce and speaker pump.
  */
 @Composable
 fun Lou(
@@ -138,23 +140,39 @@ fun Lou(
     }
 }
 
-private val BodyTop = Color(0xFF2BB3B0)
-private val BodyBottom = Color(0xFF0F7E86)
-private val BodyRim = Color(0xFF0A5F66)
-private val Belly = Color(0xFF7FE0D2)
-private val BellyDeep = Color(0xFF45C2B6)
-private val Ink = Color(0xFF0E2A2E)
+/** A hand or foot of the SVG body: the round region cut out of the body, the slightly bigger patch drawn back, and its joint. */
+private class Limb(val hand: Boolean, val side: Float, cx: Float, cy: Float, r: Float, px: Float, py: Float, margin: Float = 3.5f) {
+    val cut = Path().apply { addOval(Rect(Offset(cx, cy), r)) }
+    val patch = Path().apply { addOval(Rect(Offset(cx, cy), r + margin)) }
+    val pivot = Offset(px, py)
+}
+
+// positions measured on docs/lou.svg (SVG units): hands are the round lumps, feet the flat stubs at the sides
+private val Limbs = listOf(
+    Limb(hand = false, side = -1f, cx = 12f, cy = 128.5f, r = 8f, px = 23f, py = 127.5f, margin = 2.5f),
+    Limb(hand = false, side = 1f, cx = 158f, cy = 127.5f, r = 8f, px = 148f, py = 126.5f, margin = 2.5f),
+    Limb(hand = true, side = -1f, cx = 37f, cy = 126f, r = 16f, px = 37f, py = 111f),
+    Limb(hand = true, side = 1f, cx = 131f, cy = 126f, r = 16f, px = 131f, py = 111f),
+)
 
 /** Smooth 0→1→0 bump with eased edges (for jumps): ease-in-out sine. */
 private fun bump(p: Float) = sin(p.coerceIn(0f, 1f) * PI.toFloat())
+private fun smooth(e0: Float, e1: Float, x: Float): Float { val k = ((x - e0) / (e1 - e0)).coerceIn(0f, 1f); return k * k * (3 - 2 * k) }
 
+/**
+ * Draws Lou from his exact SVG artwork (LouArt) and animates the parts: the whole body breathes, jumps,
+ * bounces and tilts; the heavy lids blink and move with mood; the pupils look around inside the eye
+ * whites; the smile widens, flattens or opens into a talking mouth; the speaker pumps on the beat and
+ * the arm lines sway. At rest with mood Idle he matches the SVG exactly.
+ */
 private fun DrawScope.drawLou(pose: Pose, mood: LouMood, t: Float, since: Float, blink: Float, beatPhase: Float?, still: Boolean) {
-    val w = size.width; val h = size.height
-    val unit = min(w / 1.15f, h)
-    val cx = w / 2f
-    val floor = h * 0.97f
+    val A = LouArt
+    // fit the 171 × 144 artwork into the canvas, centred, standing on the bottom edge
+    val s = min(size.width / A.WIDTH, size.height / A.HEIGHT)
+    val ox = (size.width - A.WIDTH * s) / 2f
+    val oy = size.height - A.HEIGHT * s
 
-    // ---------------- body motion (all continuous curves) ----------------
+    // ---------------- body motion (same curves as before, in SVG units) ----------------
     var squash = 0f; var lift = 0f; var pump = 0f
     var tilt = pose.tilt
     if (!still) {
@@ -163,7 +181,7 @@ private fun DrawScope.drawLou(pose: Pose, mood: LouMood, t: Float, since: Float,
             LouMood.Cheer -> {
                 val c = since % 1.1f
                 when {
-                    c < 0.2f -> squash += 0.11f * bump(c / 0.4f)                                    // anticipation (eased)
+                    c < 0.2f -> squash += 0.11f * bump(c / 0.4f)                                    // anticipation
                     c < 0.72f -> { val p = (c - 0.2f) / 0.52f; lift = bump(p) * 0.22f; squash -= 0.07f * bump(p) }
                     c < 0.95f -> squash += 0.09f * bump((c - 0.72f) / 0.23f)                      // soft landing
                 }
@@ -176,121 +194,115 @@ private fun DrawScope.drawLou(pose: Pose, mood: LouMood, t: Float, since: Float,
         }
         if (beatPhase != null) {
             val k = (1f - beatPhase).coerceIn(0f, 1f)
-            pump = k * k * (3 - 2 * k)       // smoothstep instead of a hard decay
+            pump = k * k * (3 - 2 * k)
             squash += pump * 0.06f
             if (mood == LouMood.Dance) tilt += 3f * sin(t * PI.toFloat())
         }
     }
-    val bodyW = unit * 1.05f * (1f + squash * 0.7f)
-    val bodyH = unit * 0.86f * (1f - squash)
-    val baseY = floor - lift * unit
-    val left = cx - bodyW / 2f
-    val top = baseY - bodyH
+    val base = Offset(A.WIDTH / 2f, 136f)              // where his feet meet the ground
+    val liftU = lift * 120f
 
-    val shadowK = 1f - lift * 2.2f
-    drawOval(Color(0x33000000), Offset(cx - bodyW * 0.42f * shadowK, floor - unit * 0.035f), Size(bodyW * 0.84f * shadowK, unit * 0.07f))
+    withTransform({ translate(ox, oy); scale(s, s, Offset.Zero) }) {
+        // ground shadow shrinks while he's in the air
+        val shK = 1f - lift * 2.2f
+        drawOval(Color(0x2E0B3A40), Offset(base.x - 62f * shK, 136.5f), Size(124f * shK, 7f))
 
-    withTransform({ rotate(tilt, Offset(cx, baseY)) }) {
-        drawOval(BodyRim, Offset(cx - bodyW * 0.34f, baseY - unit * 0.07f), Size(bodyW * 0.22f, unit * 0.09f))
-        drawOval(BodyRim, Offset(cx + bodyW * 0.12f, baseY - unit * 0.07f), Size(bodyW * 0.22f, unit * 0.09f))
-
-        // arms: eased raise + gentle sway (never snaps)
-        val armY = top + bodyH * 0.55f
-        for (side in listOf(-1f, 1f)) {
-            val ax = cx + side * bodyW * 0.38f
-            val wave = if (!still && (mood == LouMood.Happy || mood == LouMood.Dance || mood == LouMood.Cheer)) 9f * sin(t * 6f + side) * pose.arm else 0f
-            val ang = -side * (28f + pose.arm * 125f + wave)
-            rotate(ang, Offset(ax, armY)) {
-                val len = unit * 0.3f; val wid = unit * 0.13f
-                drawRoundRect(Brush.horizontalGradient(listOf(BodyTop, BodyBottom), ax - wid / 2f, ax + wid / 2f), Offset(ax - wid / 2f, armY), Size(wid, len), CornerRadius(wid / 2f))
-                drawRoundRect(BodyRim, Offset(ax - wid / 2f, armY), Size(wid, len), CornerRadius(wid / 2f), style = Stroke(unit * 0.01f))
+        withTransform({
+            translate(0f, -liftU)
+            scale(1f + squash * 0.7f, 1f - squash, base)
+            rotate(tilt, base)
+        }) {
+            // Hands and feet are part of the body outline in the SVG. To sway them, the body goes on its own layer,
+            // each hand or foot is cut out of it and drawn back rotated a few degrees around its wrist or ankle.
+            // The redrawn piece is slightly bigger than the cut, so no gap ever opens inside the body.
+            val excited = mood == LouMood.Happy || mood == LouMood.Dance || mood == LouMood.Cheer
+            fun handAngle(side: Float) = if (still) 0f else
+                2.2f * sin(t * 1.6f + side * 1.3f) + (if (excited) 5f * sin(t * 6f + side) * pose.arm else 0f)
+            fun footAngle(side: Float) = if (still) 0f else
+                -side * (2.5f * (0.5f + 0.5f * sin(t * 1.25f + side * 2f)) + pump * 7f)
+            drawContext.canvas.saveLayer(Rect(-30f, -40f, A.WIDTH + 30f, A.HEIGHT + 20f), androidx.compose.ui.graphics.Paint())
+            drawPath(A.body.path, A.body.color)
+            for (limb in Limbs) {
+                val ang = if (limb.hand) handAngle(limb.side) else footAngle(limb.side)
+                if (kotlin.math.abs(ang) < 0.01f) continue
+                clipPath(limb.cut) { drawPath(A.body.path, Color.Black, blendMode = androidx.compose.ui.graphics.BlendMode.Clear) }
+                rotate(ang, limb.pivot) { clipPath(limb.patch) { drawPath(A.body.path, A.body.color) } }
             }
-        }
+            drawContext.canvas.restore()
+            drawPath(A.belly.path, A.belly.color)
 
-        val body = Path().apply {
-            moveTo(left + bodyW * 0.06f, baseY - bodyH * 0.06f)
-            cubicTo(left - bodyW * 0.02f, top + bodyH * 0.45f, left + bodyW * 0.18f, top, cx, top)
-            cubicTo(left + bodyW * 0.82f, top, left + bodyW * 1.02f, top + bodyH * 0.45f, left + bodyW * 0.94f, baseY - bodyH * 0.06f)
-            cubicTo(left + bodyW * 0.9f, baseY + bodyH * 0.01f, left + bodyW * 0.1f, baseY + bodyH * 0.01f, left + bodyW * 0.06f, baseY - bodyH * 0.06f)
-            close()
-        }
-        drawPath(body, Brush.verticalGradient(listOf(BodyTop, BodyBottom), top, baseY))
-        drawPath(body, BodyRim, style = Stroke(unit * 0.012f))
-        clipPath(body) {
-            val bellyC = Offset(cx, top + bodyH * 0.68f)
-            drawOval(Brush.verticalGradient(listOf(Belly, BellyDeep), bellyC.y - bodyH * 0.3f, bellyC.y + bodyH * 0.3f), Offset(bellyC.x - bodyW * 0.3f, bellyC.y - bodyH * 0.27f), Size(bodyW * 0.6f, bodyH * 0.6f))
-            drawOval(Brush.verticalGradient(listOf(Color(0x8CFFFFFF), Color(0x00FFFFFF)), top, top + bodyH * 0.35f), Offset(left + bodyW * 0.14f, top + bodyH * 0.03f), Size(bodyW * 0.72f, bodyH * 0.32f))
-            drawOval(Color(0x66FFFFFF), Offset(left + bodyW * 0.22f, top + bodyH * 0.07f), Size(bodyW * 0.18f, bodyH * 0.07f))
-        }
+            // arm lines and the little shadow under each hand move with that hand
+            for ((side, parts) in listOf(-1f to listOf(A.armL, A.shadeL), 1f to listOf(A.armR, A.shadeR))) {
+                val limb = Limbs.first { it.hand && it.side == side }
+                rotate(handAngle(side), limb.pivot) { parts.forEach { drawPath(it.path, it.color) } }
+            }
 
-        // woofer
-        val wc = Offset(cx, top + bodyH * 0.7f); val r = unit * 0.15f
-        drawCircle(Color(0xFF173D41), r * 1.12f, wc)
-        drawCircle(Brush.radialGradient(listOf(Color(0xFF5E7477), Color(0xFF223236)), wc, r), r * (1f + pump * 0.08f), wc)
-        for (i in 1..2) drawCircle(Color(0x33FFFFFF), r * (0.55f + i * 0.17f) * (1f + pump * 0.08f), wc, style = Stroke(unit * 0.006f))
-        drawCircle(Brush.radialGradient(listOf(Color(0xFF8FA3A6), Color(0xFF2C3E42)), wc - Offset(r * 0.1f, r * 0.1f), r * 0.4f), r * 0.36f * (1f + pump * 0.15f), wc)
-        drawCircle(Color(0x99FFFFFF), r * 0.1f, wc - Offset(r * 0.14f, r * 0.14f))
+            // speaker: the cone pumps on the beat (and a little while he talks)
+            val talkPump = if (still) 0f else pose.mouth * 0.5f * (0.5f + 0.5f * sin(t * 18f))
+            val sc = A.ring1.bounds.center
+            scale(1f + pump * 0.06f + talkPump * 0.03f, pivot = sc) { A.rings.forEach { drawPath(it.path, it.color) } }
 
-        // face
-        val eyeY = top + bodyH * 0.3f; val eyeDX = bodyW * 0.14f; val eyeR = unit * 0.075f
-        val lid = max(pose.lid, blink)
-        for (side in listOf(-1f, 1f)) {
-            val ec = Offset(cx + side * eyeDX, eyeY)
-            val er = eyeR * pose.eyeScale
-            // open eye, fading out as happy (closed-arc) eyes fade in
-            val openA = (1f - pose.happyEyes).coerceIn(0f, 1f)
-            if (openA > 0.01f) {
-                drawCircle(Color.White.copy(alpha = openA), er, ec)
-                val pupil = Offset(ec.x + pose.lookX * er * 0.35f, ec.y + pose.lookY * er * 0.3f + er * 0.12f)
-                drawCircle(Ink.copy(alpha = openA), er * 0.55f, pupil)
-                drawCircle(Color.White.copy(alpha = openA), er * 0.17f, pupil + Offset(-er * 0.18f, -er * 0.2f))
-                if (lid > 0.01f) {
-                    val lidH = er * 2f * lid
-                    clipPath(Path().apply { addOval(Rect(ec, er)) }) {
-                        drawRect(Brush.verticalGradient(listOf(BodyTop, Color(0xFF22A3A2)), ec.y - er, ec.y - er + lidH), Offset(ec.x - er, ec.y - er), Size(er * 2f, lidH))
+            // eyes, layered like the SVG: the dark dome (socket) first, then the white half-eye and pupil on top.
+            // Opening (happy, surprised) grows the white up into the dome; closing (sleepy, blink) covers it from the top.
+            for (side in listOf(-1f, 1f)) {
+                val white = if (side < 0) A.whiteL else A.whiteR
+                val pupil = if (side < 0) A.pupilL else A.pupilR
+                val lid = if (side < 0) A.lidL else A.lidR
+                val wb = white.bounds
+                val brow = if (side < 0) pose.browL else pose.browR
+                val l = (pose.lid - (brow - 0.08f) * 0.6f).coerceIn(0f, 1f)
+                val openK = if (l < 0.42f) (0.42f - l) / 0.42f else 0f
+                val closeK = max(if (l > 0.42f) (l - 0.42f) / 0.58f else 0f, blink)
+                scale(pose.eyeScale, pivot = wb.center) {
+                    rotate(side * pose.browTilt * 0.5f, lid.bounds.center) { drawPath(lid.path, lid.color) }
+                    // the white grows upward from its bottom edge, staying inside the dome
+                    val grow = 1f + openK * (lid.bounds.bottom - lid.bounds.top) / wb.height * 0.55f
+                    val eyeArea = Path().apply { op(white.path, lid.path, androidx.compose.ui.graphics.PathOperation.Union) }
+                    clipPath(eyeArea) {
+                        scale(1f, grow, Offset(wb.center.x, wb.bottom)) {
+                            drawPath(white.path, white.color)
+                            clipPath(white.path) {
+                                translate(pose.lookX * wb.width * 0.16f, pose.lookY * wb.height * 0.22f) { drawPath(pupil.path, pupil.color) }
+                                if (closeK > 0.001f) drawRect(lid.color, Offset(wb.left - 1f, wb.top - 1f), Size(wb.width + 2f, (wb.height + 2f) * closeK))
+                            }
+                        }
                     }
-                    drawLine(BodyRim.copy(alpha = openA), Offset(ec.x - er * 0.95f, ec.y - er + lidH), Offset(ec.x + er * 0.95f, ec.y - er + lidH), unit * 0.012f, StrokeCap.Round)
                 }
-                drawCircle(BodyRim.copy(alpha = openA), er, ec, style = Stroke(unit * 0.008f))
             }
-            if (pose.happyEyes > 0.01f) {
-                drawArc(Ink.copy(alpha = pose.happyEyes.coerceIn(0f, 1f)), 200f, 140f, false, Offset(ec.x - er, ec.y - er * 0.6f), Size(er * 2f, er * 1.4f), style = Stroke(unit * 0.018f, cap = StrokeCap.Round))
-            }
-            val by = ec.y - eyeR * (1.35f + if (side < 0) pose.browL else pose.browR)
-            rotate(side * pose.browTilt, Offset(ec.x, by)) { drawLine(BodyRim, Offset(ec.x - eyeR * 0.7f, by), Offset(ec.x + eyeR * 0.7f, by), unit * 0.02f, StrokeCap.Round) }
-        }
-        drawOval(Color(0x40FF8FA3), Offset(cx - eyeDX - eyeR * 1.6f, eyeY + eyeR * 0.9f), Size(eyeR * 1.3f, eyeR * 0.6f))
-        drawOval(Color(0x40FF8FA3), Offset(cx + eyeDX + eyeR * 0.3f, eyeY + eyeR * 0.9f), Size(eyeR * 1.3f, eyeR * 0.6f))
 
-        // mouth: one continuous shape — smile line blends into an open mouth as it opens
-        val my = eyeY + eyeR * 1.7f
-        val mw = unit * pose.mouthW
-        val open = (pose.mouth + pose.mouthExtra).coerceIn(0f, 1f)
-        val smileArc = 0.7f * pose.smile
-        if (pose.thinkMouth > 0.5f && open < 0.08f) {
-            drawLine(Ink, Offset(cx - mw * 0.1f, my + unit * 0.01f), Offset(cx + mw * 0.6f, my - unit * 0.005f), unit * 0.014f, StrokeCap.Round)
-        } else {
-            val mh = unit * 0.09f * open
-            val p = Path().apply {
-                moveTo(cx - mw / 2f, my)
-                quadraticTo(cx, my + mw * 0.35f * smileArc - mh * 0.25f, cx + mw / 2f, my)        // upper lip (a smile when closed)
-                quadraticTo(cx, my + mw * 0.35f * smileArc + mh * 1.6f, cx - mw / 2f, my)          // lower lip opens smoothly
-                close()
+            // mouth: his own smile, widened or flattened by mood; opens into a round mouth when he talks
+            val m = A.mouth; val mb = m.bounds; val mc = mb.center
+            val open = (pose.mouth + pose.mouthExtra).coerceIn(0f, 1f)
+            val openK = smooth(0.04f, 0.22f, open)
+            val sx = (0.75f + pose.mouthW * 2.5f) * (1f - 0.3f * pose.thinkMouth)
+            val sy = (pose.smile * (0.8f + pose.mouthW * 2f)) * (1f - 0.7f * pose.thinkMouth)
+            if (openK < 0.99f) translate(pose.thinkMouth * 3f, 0f) {
+                scale(sx, sy.coerceAtLeast(0.15f), mc) { drawPath(m.path, m.color.copy(alpha = 1f - openK)) }
             }
-            if (open > 0.03f) {
-                drawPath(p, Color(0xFF3A1420))
-                clipPath(p) { drawOval(Color(0xFFE86A7E), Offset(cx - mw * 0.3f, my + mh * 0.6f), Size(mw * 0.6f, mh + 1f)) }
+            if (openK > 0.01f) {
+                val mw = mb.width * sx * 0.78f
+                val top = mb.top + mb.height * 0.2f
+                val depth = 2.5f + open * 9f
+                val shape = Path().apply {
+                    moveTo(mc.x - mw / 2f, top)
+                    quadraticTo(mc.x, top - 1.2f, mc.x + mw / 2f, top)
+                    quadraticTo(mc.x + mw / 2f, top + depth * 1.15f, mc.x, top + depth)
+                    quadraticTo(mc.x - mw / 2f, top + depth * 1.15f, mc.x - mw / 2f, top)
+                    close()
+                }
+                drawPath(shape, m.color.copy(alpha = openK))
+                clipPath(shape) { drawOval(Color(0xFFE86A7E).copy(alpha = openK), Offset(mc.x - mw * 0.28f, top + depth * 0.55f), Size(mw * 0.56f, depth)) }
             }
-            drawPath(Path().apply { moveTo(cx - mw / 2f, my); quadraticTo(cx, my + mw * 0.35f * smileArc - mh * 0.25f, cx + mw / 2f, my) }, Ink, style = Stroke(unit * 0.014f, cap = StrokeCap.Round))
-        }
-        if (mood == LouMood.Sleepy && !still) {
-            val zp = (t % 2.4f) / 2.4f
-            drawZ(Offset(cx + bodyW * 0.38f + zp * unit * 0.1f, top - zp * unit * 0.2f), unit * 0.05f * (0.6f + zp), bump(zp))
+
+            if (mood == LouMood.Sleepy && !still) {
+                val zp = (t % 2.4f) / 2.4f
+                drawZ(Offset(140f + zp * 12f, 22f - zp * 24f), 7f * (0.6f + zp), bump(zp))
+            }
         }
     }
 }
 
 private fun DrawScope.drawZ(at: Offset, s: Float, alpha: Float) {
     val p = Path().apply { moveTo(at.x, at.y); lineTo(at.x + s, at.y); lineTo(at.x, at.y + s); lineTo(at.x + s, at.y + s) }
-    drawPath(p, Color(0xFF0F7E86).copy(alpha = alpha.coerceIn(0f, 1f)), style = Stroke(s * 0.22f, cap = StrokeCap.Round))
+    drawPath(p, LouArt.body.color.copy(alpha = alpha.coerceIn(0f, 1f)), style = Stroke(s * 0.22f, cap = StrokeCap.Round))
 }

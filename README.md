@@ -4,7 +4,7 @@
 
 <br>
 
-<a href="../../releases/latest"><img alt="Download APK" src="https://img.shields.io/badge/⬇_Download-APK_v1.0.0-2f8f1c?style=for-the-badge&labelColor=0b7fb8"></a>
+<a href="../../releases/latest"><img alt="Download APK" src="https://img.shields.io/badge/⬇_Download-APK_v1.0.1-2f8f1c?style=for-the-badge&labelColor=0b7fb8"></a>
 
 <img alt="Android 8.1+" src="https://img.shields.io/badge/Android-8.1%2B-3ddc84?style=flat-square&logo=android&logoColor=white">
 <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-Jetpack_Compose-7f52ff?style=flat-square&logo=kotlin&logoColor=white">
@@ -37,6 +37,12 @@ Music words in Lou's speech bubble turn into chips such as *? chord* and *? octa
 </td>
 </tr>
 </table>
+
+Lou in the app is drawn from the same artwork as the banner ([docs/lou.svg](docs/lou.svg)). He has nine moods. He breathes, blinks, looks around and sways his hands and feet, and his speaker pumps on the beat.
+
+<div align="center">
+<img src="docs/lou-moods-preview.gif" alt="Lou's nine moods: idle, listen, happy, cheer, think, surprised, encourage, sleepy, dance" width="520">
+</div>
 
 ## Screenshots
 
