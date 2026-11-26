@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/banner.svg" alt="beatpath — learn music theory and melody, then make it in FL Studio" width="100%">
+<img src="docs/banner.svg" alt="beatpath: learn music theory and melody, then make it in FL Studio" width="100%">
 
 <br>
 
@@ -12,13 +12,11 @@
 <img alt="Lessons" src="https://img.shields.io/badge/lessons-81-ff8a1f?style=flat-square">
 <img alt="Tests" src="https://img.shields.io/badge/unit_tests-27_passing-25985a?style=flat-square">
 
-**Bite-sized lessons that take you from *"what's a beat?"* to writing an 8-bar hook with harmony —<br>on a phone, in an FL Studio-style Channel Rack and Piano roll, with Lou as your guide.**
+Beatpath is an Android app that teaches music theory and melody writing in short lessons, from your first beat to an 8-bar hook with harmony. You work in a Channel Rack and Piano roll modeled on FL Studio, and a character called Lou walks you through each step.
 
 </div>
 
----
-
-## 🎧 Meet Lou
+## Meet Lou
 
 <table>
 <tr>
@@ -27,20 +25,20 @@
 </td>
 <td>
 
-Lou is a little speaker-bellied creature who teaches every lesson. He **never lectures** — each step is one idea and one action:
+Lou is a small creature with a speaker for a belly, and he runs every lesson. Each step asks you to do one thing:
 
-1. 💡 **Today's idea** — the concept in one sentence (tap *Words & tips* for more)
-2. 🎹 **Do it** — tap steps in the Channel Rack or draw notes in the Piano roll
-3. ✅ **Check** — precise feedback: *"Note 3 should be higher than E5"*
-4. 🆘 **Stuck?** — a 3-step hint ladder: a clue → gold outlines → the idea again in other words, then *↩ Back to the task*
+1. A card gives the lesson's idea in one sentence. Tap *Words & tips* for definitions and an FL Studio tip.
+2. You tap steps in the Channel Rack or draw notes in the Piano roll.
+3. *Check* tells you exactly what's off, for example *"Note 3 should be higher than E5"*.
+4. If you're stuck, *Hint* gives a clue first, then gold outlines where the notes go, then the idea again in other words. *↩ Back to the task* brings the instructions back.
 
-Tap any music word in Lou's bubble (**? chord**, **? octave**…) and he explains it.
+Music words in Lou's speech bubble turn into chips such as *? chord* and *? octave*. Tap one and Lou explains the word.
 
 </td>
 </tr>
 </table>
 
-## 📸 Screens
+## Screenshots
 
 <div align="center">
 <img src="docs/screens/learn.jpg" width="19%" alt="Learning path">
@@ -53,50 +51,51 @@ Tap any music word in Lou's bubble (**? chord**, **? octave**…) and he explain
 <img src="docs/screens/landscape-home.jpg" width="49%" alt="Home in landscape with the navigation rail">
 </div>
 
-## 🧠 What you learn
+## What you learn
 
 <div align="center">
 <img src="docs/pianoroll.svg" alt="Animated piano roll writing C, G, A minor, F" width="49%">
 <img src="docs/rack.svg" alt="Animated channel rack playing a house beat" width="49%">
 </div>
 
-| Track | Levels | You'll be able to… |
+| Track | Levels | Topics |
 |---|---|---|
-| 🥁 **Beats** | 1 · 3 · 5 | build kick/clap/hat grooves, swing, ghost notes, dynamics |
-| 🎼 **Notes & keys** | 2 · 11 | read the Piano roll, C/G/F/D major, transpose a melody |
-| 🎹 **Harmony** | 4 · 9 · 14 · 15 | triads, I–V–vi–IV, minor & modes, secondary dominants, borrowed chords |
-| 🎤 **Melody** | 7 · 8 · 12 · 13 · 16 | motifs, contour, harmony lines, syncopation, triplets, development |
-| 🔊 **Bass** | 6 | roots, octaves, 808 basics locked to the kick |
-| 🎬 **Songwriting** | 10 · 17 · 18 | phrases, verse vs chorus, harmonise a tune, your own 8-bar hook |
+| Beats | 1, 3, 5 | kick, clap and hat grooves, swing, ghost notes, dynamics |
+| Notes and keys | 2, 11 | reading the Piano roll, C, G, F and D major, transposing a melody |
+| Harmony | 4, 9, 14, 15 | triads, I-V-vi-IV, minor keys and modes, secondary dominants, borrowed chords |
+| Melody | 7, 8, 12, 13, 16 | motifs, contour, harmony lines, syncopation, triplets, developing a melody |
+| Bass | 6 | roots, octaves, 808 basics that lock to the kick |
+| Songwriting | 10, 17, 18 | phrases, verse and chorus, harmonizing a tune, writing an 8-bar hook |
 
-**81 lessons** — 5 ear-training lessons + 76 Studio lessons in 18 levels, each ending with a jam and an FL Studio tip you can use on desktop.
+There are 81 lessons: 5 ear-training lessons, then 76 Studio lessons in 18 levels. Each level ends with a jam, and each lesson ends with a tip you can try in FL Studio on a computer.
 
-## ⚡ Practice that never runs out *(new in 1.0)*
+## Practice (new in 1.0)
 
-| | |
-|---|---|
-| 🎯 **Daily mix** | 8 ear questions, weighted toward the skills you miss most |
-| 🔁 **Spaced review** | lessons you needed help with come back after 1, 3 and 7 days |
-| ♾️ **Endless drills** | high/low · pitch vs volume · up/down · step/leap · major/minor · *which chord?* · **melody dictation** |
-| 🏆 **Course complete** | finish all 81 → celebrate, then *Practice*, *Make a song* or *Redo for gold* |
+The Practice tab generates its exercises, so it keeps going after the last lesson.
 
-## ✨ Feels like
+- Daily mix: 8 ear-training questions, with more of the skills you get wrong.
+- Review: lessons you needed help with come back after 1, 3 and 7 days, until you pass them on your own.
+- Drills: high or low, pitch or volume, up or down, step or leap, major or minor, which chord, and melody dictation, where you hear four notes and write them in the Piano roll.
 
-- **Frutiger Aero** — sky-blue ripple artwork, floating bubbles, **frosted-glass** panels and buttons
-- **Real FL Studio vocabulary** — Channel Rack (F6), Piano roll (F7), Draw P / Paint B / Delete D / Select E, snap, velocity, swing — drawn from scratch, no Image-Line assets
-- **More sounds** — 4 drum kits (Classic, 808, House, Lo-fi) and 19 instrument presets (bell, flute, e-piano, strings, sub bass, wobble…), all synthesized on-device
-- **Export** — MIDI straight into FL Studio (*Piano roll → File → Import MIDI file*), or WAV to share
-- **Portrait & landscape**, smooth spring animations, lush Y2K sound effects, TalkBack labels everywhere
+When you finish all 81 lessons, the Learn path offers Practice, a blank 4-bar song, or a redo of the lessons you passed with help.
 
-## 📲 Install
+## The app
 
-1. Download **`Beatpath-1.0.0.apk`** from [Releases](../../releases/latest)
-2. Open it on your Android phone (8.1 or newer) and allow *install unknown apps* for your browser/files app
-3. Start from zero — or tap *I already make beats* to unlock everything
+- The look is Frutiger Aero: a sky-blue ripple background with floating bubbles, and frosted-glass panels and buttons.
+- The Studio uses FL Studio's names and shortcuts: Channel Rack (F6), Piano roll (F7), Draw (P), Paint (B), Delete (D), Select (E), snap, velocity and swing. The graphics are drawn from scratch; none come from Image-Line.
+- The phone synthesizes every sound: 4 drum kits (Classic, 808, House, Lo-fi) and 19 instrument presets, among them bell, flute, e-piano, strings, sub bass and wobble bass.
+- You can export a loop as MIDI and open it in FL Studio (*Piano roll → File → Import MIDI file*), or as a WAV file to share.
+- Every screen has a portrait and a landscape layout, and the controls have TalkBack labels.
 
-No account, no ads, no network: progress and loops stay on your phone.
+## Install
 
-## 🛠️ Build from source
+1. Download `Beatpath-1.0.0.apk` from [Releases](../../releases/latest).
+2. Open it on an Android phone running 8.1 or newer. Your browser or Files app may ask for permission to install unknown apps.
+3. Tap *Start from zero*, or *I already make beats* to unlock every lesson.
+
+The app needs no account or network connection and has no ads. Your progress and loops stay on the phone.
+
+## Build from source
 
 ```bash
 cd android
@@ -105,27 +104,25 @@ export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"  
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Open any screen directly while developing:
-`adb shell am start -S -n com.beatpath.app/.MainActivity --es route roll.four-chord-loop` (any lesson id, `practice`, `practice.mix`, `home`, `studio`).
+To open a screen directly while developing, pass its route:
+`adb shell am start -S -n com.beatpath.app/.MainActivity --es route roll.four-chord-loop`. Routes include any lesson id, `practice`, `practice.mix`, `home` and `studio`.
 
 <details>
-<summary><b>Under the hood</b></summary>
+<summary>How it's built</summary>
 
-- **Kotlin + Jetpack Compose**, single activity, no third-party runtime dependencies
-- **Audio engine** — low-latency `AudioTrack`, event scheduler (16ths, triplets, swing), polyBLEP subtractive synth with a Cytomic SVF filter, synthesized drum kits, Freeverb-style reverb, offline render for WAV
-- **Lessons are data** — each step has Lou's line, one task, ghost outlines, a hint ladder and a `check(project) → Verdict` function
-- **Practice** — generated ear items, melody dictation lessons and a spaced-review scheduler (pure Kotlin, unit-tested)
-- **27 unit tests** — every lesson's setup & checks, MIDI export, sound presets, practice generators and review schedule
-- **UI checks** — scripts in `android/tools/ui-check/` launch every lesson in both orientations and audit tap targets
+- Kotlin and Jetpack Compose in a single activity. The only libraries are AndroidX and Compose.
+- The audio engine plays through a low-latency `AudioTrack`. It has an event scheduler (sixteenths, triplets, swing), a polyBLEP subtractive synth with a Cytomic SVF filter, synthesized drums, a Freeverb-style reverb, and offline rendering for WAV export.
+- Each lesson step is data: Lou's line, one task, ghost outlines, a hint ladder and a `check(project) → Verdict` function.
+- Practice items, dictation lessons and the review schedule are generated in plain Kotlin.
+- 27 unit tests cover every lesson's setup and checks, MIDI export, the sound presets, the practice generators and the review schedule.
+- Scripts in `android/tools/ui-check/` open every lesson in both orientations and check tap targets.
 
 </details>
 
-## 🗺️ Roadmap
+## Roadmap
 
-Real-phone latency & audio focus → content packs (chord voicings, Ear training II, genre grooves) → Song mode → Play Store. See **[BUILD-PLAN.md](BUILD-PLAN.md)** — including a step-by-step guide to **adding your own lessons**.
-
----
+Next: measure audio latency on real phones and pause for calls (audio focus). After that come content packs (chord voicings, Ear training II, genre grooves), a Song mode, and a Play Store release. [BUILD-PLAN.md](BUILD-PLAN.md) has the details, including how to add your own lessons.
 
 <div align="center">
-<sub>Beatpath is an independent learning project. FL Studio is a trademark of Image-Line; this app is not affiliated with or endorsed by Image-Line. All UI is original.</sub>
+<sub>Beatpath is an independent learning project. FL Studio is a trademark of Image-Line. Beatpath is not affiliated with or endorsed by Image-Line, and all of its UI is original.</sub>
 </div>

@@ -1,64 +1,60 @@
-# Beatpath — Build Plan
+# Beatpath build plan
 
-Where the app is now, what to build next, and how to add lessons once the current course runs out.
-
----
+This covers where the app stands, what to build next, and how to add lessons.
 
 ## 1. Where we are (1.0.0)
 
-> **0.4 shipped as 1.0.0.** It includes everything in section 2: the course-complete card, the Practice tab (Daily mix, endless drills, melody dictation) and spaced review.
+Version 1.0.0 is the build that was planned as 0.4. It added a course-complete card, the Practice tab and spaced review (section 2).
 
 | Area | State |
 |---|---|
-| Course | 81 lessons: 5 ear lessons plus 76 Studio lessons in 18 levels, from your first beat to writing an 8-bar hook with harmony. |
-| Studio | FL-style Channel Rack (4 drum kits) and Piano roll (an instrument picker for each channel). MIDI and WAV export. |
-| Guide | Lou: a "Today's idea" card, word chips that explain terms, a 3-step hint ladder, "Back to the task", and theory and FL tips. |
-| Look | Frutiger Aero: sky-blue menu art with floating bubbles, glass panels, and compact gel buttons. Full portrait and landscape layouts. |
-| Quality | 23 unit tests. A UI check script in `android/tools/ui-check/`. |
-| After the course | ✅ **Done in 1.0:** course-complete card, Practice tab (Daily mix, 7 endless drills, melody dictation) and spaced review (1/3/7 days). |
-| Not done | A signed release build, audio latency on a real phone, and audio focus (pausing for calls and other apps). |
+| Course | 81 lessons: 5 ear lessons, then 76 Studio lessons in 18 levels, from a first beat to an 8-bar hook with harmony. |
+| Studio | An FL-style Channel Rack with 4 drum kits and a Piano roll with an instrument picker for each channel. MIDI and WAV export. |
+| Guide | Lou gives a "Today's idea" card, word chips that explain terms, a 3-step hint ladder with "Back to the task", and theory and FL tips. |
+| Look | Frutiger Aero: sky-blue menu art with floating bubbles, frosted-glass panels and compact buttons, with portrait and landscape layouts. |
+| Quality | 27 unit tests and UI check scripts in `android/tools/ui-check/`. |
+| After the course | The course-complete card, a Practice tab with a Daily mix, 7 endless drills and melody dictation, and spaced review after 1, 3 and 7 days. |
+| Not done | A release signing key, audio latency measured on a real phone, and audio focus (pausing for calls and other apps). |
 
----
+## 2. After the last lesson (built in 1.0)
 
-## 2. When the lessons are over (✅ built in 1.0)
+Before 1.0, finishing lesson 81 left the Learn path full of checkmarks, the Studio hub's "Continue" button disappeared, and the app had nothing new to offer. Version 1.0 added two things.
 
-Right now, once you finish lesson 81, the Learn path is all checkmarks, the Studio hub's "Continue" button disappears, and nothing invites you back. Fix that before adding more content. Two cheap builds do it:
+### 2a. Course complete
+When `store.nextLesson()` returns `null`, the Learn path shows a card where Lou cheers and you see your XP and how many lessons you passed without help. The card has three buttons:
 
-### 2a. "Course complete" moment (½ day)
-- When `store.nextLesson()` returns `null`, the Learn path ends with a celebration card: Lou cheers, you see your total XP and the number of lessons you did without help.
-- The card has three buttons:
-  - **Practice**: the endless mode in 2b.
-  - **Make a song**: free play with an 8-bar template.
-  - **Redo for gold**: replay the lessons you finished with help, to earn a gold star.
-- In the Studio hub, replace the "Continue" button with "Daily practice".
+- Practice opens the Practice tab.
+- Make a song opens free play with a blank 4-bar pattern.
+- Redo for gold reopens the first lesson you passed with help, so you can earn its gold star.
 
-### 2b. Endless practice (2–3 days), so the app never runs out
-These are generated, not hand-written, so they last forever:
-- **Ear drills:** random pairs and chords drawn from what you've already learned (high/low, step/leap, major/minor, then intervals and the chords in a progression). `EarLessons.spec(id)` already builds items from a list. Add a generator that makes a fresh `EarSpec` with random `EarItem`s.
-- **Melody dictation:** Lou plays 3 to 5 notes from a scale you know, and you copy them in the Piano roll. Check with the existing `Checks` helpers: compare pitches and start times.
-- **Chord spotting:** play I–V–vi–IV-style loops, and you name the chord that changed.
-- **Daily mix:** 5 items picked from your weakest skills. Track a hit rate for each skill in `Store`, which already saves to JSON.
-- **Spaced review:** lessons you finished with help come back after 1, 3 and 7 days.
+The Studio hub's "Continue" button becomes "Daily practice".
 
----
+### 2b. Endless practice
+The app generates these exercises, so they don't run out.
 
-## 3. How to add more lessons (step by step)
+- Ear drills draw random items for each skill: high or low, pitch or volume, up or down, step or leap, and major or minor. `Practice.earSpec(id)` builds a fresh `EarSpec` each time.
+- In "Which chord?", Lou plays C and then F, G or A minor, and you name the second chord.
+- Melody dictation plays four notes in C major in bar 1, and you write them in bar 2 of the Piano roll. `Practice.checkDictation` compares pitches and beats.
+- The Daily mix is 8 questions. Skills with a lower hit rate (kept per skill in `Store`) get picked more often.
+- Spaced review brings back a lesson you needed help with after 1 day, then 3, then 7, and retires it once you pass it on your own (`Practice.nextReview`).
 
-Lessons are Kotlin data, so adding one doesn't need any new screens.
+## 3. How to add lessons
+
+Lessons are Kotlin data, so a new lesson doesn't need a new screen.
 
 ### Files
-- `android/app/src/main/java/com/beatpath/app/lessons/Curriculum.kt`: levels 1–10, the helpers `n()`, `at()`, `steps()` and `drumStep()`, and the master `lessons` list.
-- `.../lessons/TheoryCurriculum.kt`: levels 11–18. Copy this pattern for a new pack.
-- `.../lessons/LessonModel.kt`: `Lesson`, `LessonStep`, `Ghost`, `Verdict` and the `Checks` helpers.
-- `.../lessons/Teaching.kt`: glossary terms (they become "? word" chips automatically) and tip pools.
+- `android/app/src/main/java/com/beatpath/app/lessons/Curriculum.kt` holds levels 1 to 10, the helpers `n()`, `at()`, `steps()` and `drumStep()`, and the master `lessons` list.
+- `.../lessons/TheoryCurriculum.kt` holds levels 11 to 18. Copy its pattern for a new pack.
+- `.../lessons/LessonModel.kt` defines `Lesson`, `LessonStep`, `Ghost`, `Verdict` and the `Checks` helpers.
+- `.../lessons/Teaching.kt` has the glossary terms, which become "? word" chips on their own, and the tip pools.
 
-### Recipe: a new level with lessons
-1. **Make a pack file.** Copy `TheoryCurriculum.kt` to, for example, `ChordsPackCurriculum.kt`, with `object ChordsPack { val levels = …; val lessons = … }`.
-2. **Add the level** with the next free number:
+### Adding a level with lessons
+1. Make a pack file. Copy `TheoryCurriculum.kt` to a new file such as `ChordsPackCurriculum.kt`, with `object ChordsPack { val levels = …; val lessons = … }`.
+2. Add the level with the next free number:
    ```kotlin
    Level(19, "Chord voicings", "Inversions, open voicings and smooth movement.", Track.HARMONY)
    ```
-3. **Write lessons.** Each one is one idea with 1 to 3 steps, and each step is a single action:
+3. Write the lessons. Each one teaches one idea in 1 to 3 steps, and each step asks for a single action:
    ```kotlin
    Lesson("voice.first-inversion", 19, "First inversion", "Same chord, different bottom note: move the root up an octave.", 3, 90, 1,
        show = listOf(CHORDS), rows = 55..79, snap = Snap.BEAT,
@@ -75,67 +71,63 @@ Lessons are Kotlin data, so adding one doesn't need any new screens.
        ),
        flTip = "In FL's Piano roll, select a chord and press Alt+↑ to invert it.")
    ```
-   - **`id`:** `area.short-name`, unique. It becomes the debug route and the progress key, so never rename it after release.
-   - **`setup`:** pre-fills the project, for example a locked drum loop or a reference melody (`locked` plus `ghost` channels).
-   - **`check`:** use or extend `Checks`. Return a `Verdict` with a headline and a body that says *exactly* what's wrong ("C is still at the bottom").
-   - **`jam = true`:** marks an open-ended review lesson at the end of a level.
-4. **Register the pack** in `Curriculum.kt`:
+   - `id` takes the form `area.short-name` and must be unique. It's also the debug route and the progress key, so don't rename it after a release.
+   - `setup` fills in the project before the lesson starts, for example with a locked drum loop or a reference melody (`locked` and `ghost` channels).
+   - `check` uses or extends `Checks`. It returns a `Verdict` whose body says what's wrong, for example "C is still at the bottom".
+   - `jam = true` marks the open-ended review lesson at the end of a level.
+4. Register the pack in `Curriculum.kt`:
    ```kotlin
    val levels = listOf(...) + TheoryCurriculum.levels + ChordsPack.levels
    val lessons = l1 + … + TheoryCurriculum.lessons + ChordsPack.lessons
    ```
-   The Learn path, Studio hub, Me levels and unlock order (`Store.order`) all update automatically.
-5. **Add glossary words** in `Teaching.kt` for new terms (for example `t("voicing", "How a chord's notes are stacked…")`). The chips appear by themselves.
-6. **Test** (see section 6):
-   - Add a case to `CurriculumTest.kt` that builds the correct answer and asserts `check` passes, and that an empty or wrong answer fails.
+   The Learn path, the Studio hub, the levels on the Me tab and the unlock order (`Store.order`) pick up the new lessons automatically.
+5. Add glossary words for new terms in `Teaching.kt`, for example `t("voicing", "How a chord's notes are stacked…")`.
+6. Test it (section 6):
+   - In `CurriculumTest.kt`, build the correct answer and assert that `check` passes, then assert that an empty or wrong answer fails.
    - Update the lesson-count assertion.
-   - Open it on the emulator: `adb shell am start -S -n com.beatpath.app/.MainActivity --es route voice.first-inversion`.
+   - Open the lesson on the emulator: `adb shell am start -S -n com.beatpath.app/.MainActivity --es route voice.first-inversion`.
 
-### Recipe: a new ear-training drill
-Add an id in `data/Store.kt → EarIds`, then a `when` branch in `EarLessons.spec(id)` with an `EarKind`, answers and items. Add a new `EarKind` only if the answer buttons differ.
+### Adding an ear-training lesson
+Add an id in `data/Store.kt → EarIds` and a `when` branch in `EarLessons.spec(id)` with an `EarKind`, answers and items. You only need a new `EarKind` when the answer buttons are different. For an endless drill, add a `Practice.Skill` entry and an item generator in `Practice.item`.
 
-### Writing guidelines (keep the teaching clear)
-- One idea per lesson, one action per step, and the guided step comes before the unguided one.
-- Lou's lines: under about 25 words, plain language, no jargon without a glossary entry.
-- A hint names the exact place (step numbers, bar.beat, note names). A failure message says what is wrong and where.
-- End each level with a jam lesson and finish every lesson with an FL tip.
+### Writing guidelines
+- Teach one idea per lesson and ask for one action per step. Put the guided step before the unguided one.
+- Keep Lou's lines under about 25 words, in plain language. Any jargon needs a glossary entry.
+- A hint names the exact place: step numbers, bar and beat, or note names. A failure message says what is wrong and where.
+- End each level with a jam lesson and each lesson with an FL tip.
 
 ### Ideas for the next packs (about 6 lessons each)
-1. **Chord voicings:** inversions, open voicings, voice leading.
-2. **Rhythm II:** 6/8 feel, swing amounts, polyrhythm basics.
-3. **Genre grooves:** lo-fi, house, trap, pop. Use the new drum kits.
-4. **Bass lines II:** walking bass, octave bass, 808 glides.
-5. **Melody III:** call and response, countermelody across sections.
-6. **Arranging:** intro, build, drop, breakdown. This needs Song mode, see 0.6.
-7. **Ear training II:** intervals, chord progressions, rhythm dictation.
+1. Chord voicings: inversions, open voicings, voice leading.
+2. Rhythm II: 6/8 feel, swing amounts, simple polyrhythms.
+3. Genre grooves: lo-fi, house, trap and pop, using the drum kits.
+4. Bass lines II: walking bass, octave bass, 808 glides.
+5. Melody III: call and response, a countermelody across sections.
+6. Arranging: intro, build, drop and breakdown. This needs Song mode (1.3).
+7. Ear training II: intervals, chord progressions, rhythm dictation.
 
----
-
-## 4. Suggested build roadmap
+## 4. Roadmap
 
 | Version | Theme | What's in it |
 |---|---|---|
-| ~~0.4~~ **1.0 ✅** | Never run out | Course-complete card, endless practice (ear drills, melody dictation, daily mix), spaced review. |
-| **0.5** | Real-phone polish | Measure audio latency on 2–3 phones and move to Oboe/AAudio if it's over ~40 ms. Pause for calls and other apps (audio focus), headphone unplug handling, reduce-motion setting (bubbles off), a TalkBack pass. |
-| **0.6** | Content pack 1 | Chord voicings and Ear training II (about 12 lessons), plus glossary updates. |
-| **0.7** | Song mode lite | Chain patterns A/B/C into 8–16 bars (the data model already has `playlist` and `songMode`), and export the whole song as MIDI or WAV. This unlocks the Arranging pack. |
-| **0.8** | Content packs 2–3 | Genre grooves, Bass II and Melody III. More kits and instrument presets for each genre. |
-| **0.9** | Release prep | Signed release AAB, app icon variants, a privacy policy (no data leaves the phone today), opt-in crash reporting, Play Store listing and screenshots. |
-| **1.0** | Launch | Internal test track, then closed beta, then production. |
+| 1.0 (done) | Practice | Course-complete card, endless practice (ear drills, melody dictation, Daily mix), spaced review. |
+| 1.1 | Real phones | Measure audio latency on 2 or 3 phones and move to Oboe/AAudio if it's over about 40 ms. Pause for calls and other apps (audio focus), stop on headphone unplug, add a reduce-motion setting that turns the bubbles off, and test with TalkBack. |
+| 1.2 | Content pack 1 | Chord voicings and Ear training II (about 12 lessons), with new glossary terms. |
+| 1.3 | Song mode | Chain patterns A, B and C into 8 to 16 bars (the data model already has `playlist` and `songMode`) and export the whole song as MIDI or WAV. The Arranging pack depends on this. |
+| 1.4 | Content packs 2 and 3 | Genre grooves, Bass II and Melody III, with kits and instrument presets for each genre. |
+| 1.5 | Release prep | A release signing key and AAB, app icon variants, a privacy policy (no data leaves the phone today), opt-in crash reporting, and a Play Store listing with screenshots. |
+| 2.0 | Play Store | Internal test track, then a closed beta, then production. |
 
 Later ideas:
-- downloadable lesson packs as JSON, so new lessons ship without an app update
+- downloadable lesson packs in JSON, so new lessons ship without an app update
 - a weekly challenge
-- sharing a loop link
+- sharing a loop by link
 - tablet layouts that use the extra width for knobs and 16 steps
 
-### Lessons without app updates (for after 1.0)
+### Shipping lessons without an app update
 Lessons are Kotlin lambdas today. To ship them remotely:
-- Define a JSON schema for `say`, `task`, `window`, `channel`, `guides` and `hint`, plus a **declarative check** chosen from a fixed list: `drumSteps`, `notesAt`, `chordAt`, `inScale`, `contour`, `rhythmMatches`. Those map onto the existing `Checks` functions.
-- Bundle packs in `assets/`, and later download them.
+- Define a JSON schema for `say`, `task`, `window`, `channel`, `guides` and `hint`, with a declarative check chosen from a fixed list: `drumSteps`, `notesAt`, `chordAt`, `inScale`, `contour` and `rhythmMatches`. Each maps onto an existing `Checks` function.
+- Bundle packs in `assets/` at first, and download them later.
 - Keep complex lessons in Kotlin.
-
----
 
 ## 5. Building and releasing
 
@@ -146,41 +138,38 @@ export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
 cp app/build/outputs/apk/debug/app-debug.apk ../Beatpath-<version>-debug.apk
 ```
 
-For every build:
-- Bump `versionCode` (+1) and `versionName` in `android/app/build.gradle.kts`.
-- Update `android/README.md`.
+For every build, add 1 to `versionCode`, set `versionName` in `android/app/build.gradle.kts`, and update `android/README.md`.
 
-Release (from 0.9):
-1. Create a keystore once and keep it safe. **If you lose it, you can't update the app.**
-2. Add a `signingConfigs { release { … } }` block that reads from `~/.gradle/gradle.properties`, never from the repo.
-3. Build with `./gradlew bundleRelease`, which makes an `.aab` for the Play Store.
+GitHub releases use `./gradlew assembleRelease`. That APK is signed with the local debug key so anyone can sideload it. For the Play Store (1.5):
 
----
+1. Create a keystore once and keep it safe. If you lose it, you can't publish updates to the app.
+2. Add a `signingConfigs { release { … } }` block that reads its passwords from `~/.gradle/gradle.properties`, never from the repo, and use it for the release build type.
+3. Build with `./gradlew bundleRelease`, which makes the `.aab` the Play Store needs.
 
-## 6. Checking a build (every time)
+## 6. Checking a build
 
-1. **Unit tests:** `./gradlew testDebugUnitTest`. Every lesson's setup and checks are tested.
-2. **Crash check of every lesson** in both orientations, about 4 minutes on the emulator:
+1. Run the unit tests with `./gradlew testDebugUnitTest`. They cover every lesson's setup and checks.
+2. Open every lesson in both orientations to catch crashes. This takes about 4 minutes on the emulator:
    ```bash
    android/tools/ui-check/fast.sh 0
    ```
    ```bash
    android/tools/ui-check/fast.sh 1
    ```
-   The lesson list is `tools/ui-check/ids.txt`. Regenerate it when you add lessons:
+   The lesson list is in `tools/ui-check/ids.txt`. Regenerate it after adding lessons:
    ```bash
    grep -ohE 'Lesson\(\s*"[a-z0-9.-]+"' android/app/src/main/java/com/beatpath/app/lessons/*.kt | grep -oE '"[^"]+"' | tr -d '"' > android/tools/ui-check/ids.txt
    ```
-3. **Layout audit with screenshots**, slower: `python3 android/tools/ui-check/sweep.py 0` (or `1`). It flags small, unlabeled or overlapping tap targets. Screenshots go to `tools/ui-check/out/`.
-4. **Button walk-through:** `python3 android/tools/ui-check/ui.py "rot 0; route home; tap Studio tab; back; shot s1; crash"`. Commands are `route`, `rot`, `tap <label>`, `back`, `shot`, `scan` and `crash`.
-5. **By hand on a real phone:** sound on, then on a full lesson check:
+3. For a layout audit with screenshots, run `python3 android/tools/ui-check/sweep.py 0` (or `1`). It flags tap targets that are small, unlabeled or overlapping, and saves screenshots to `tools/ui-check/out/`. It's slow, because the screen dump waits for animations to settle.
+4. To walk through buttons, run `python3 android/tools/ui-check/ui.py "rot 0; route home; tap Studio tab; back; shot s1; crash"`. The commands are `route`, `rot`, `tap <label>`, `back`, `swipe`, `shot`, `scan` and `crash`.
+5. On a real phone with sound on, play a full lesson and check:
    - Hint, then "Back to the task"
    - Back from every screen
-   - rotation mid-lesson
-   - export MIDI and open it in FL.
+   - rotating mid-lesson
+   - exporting MIDI and opening it in FL
 
-### Navigation rules (keep these when adding screens)
+### Navigation rules for new screens
 - Every screen has a visible way back (← or ✕) and handles the system Back button.
-- Back closes the topmost layer first (tray, sheet, dialog, open card), then leaves the screen.
-- Leaving a lesson with progress asks first. Leaving free play with unsaved changes offers Save.
+- Back closes the topmost layer first (tray, sheet, dialog or open card) and only then leaves the screen.
+- Leaving a lesson with progress asks first, and leaving free play with unsaved changes offers to save.
 - Leaving returns you to the tab you came from (`Route.*.from`).
