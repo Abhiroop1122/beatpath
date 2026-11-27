@@ -4,7 +4,7 @@
 
 <br>
 
-<a href="../../releases/latest"><img alt="Download APK" src="https://img.shields.io/badge/⬇_Download-APK_v1.0.1-2f8f1c?style=for-the-badge&labelColor=0b7fb8"></a>
+<a href="../../releases/latest"><img alt="Download APK" src="https://img.shields.io/badge/⬇_Download-APK_v1.1.0-2f8f1c?style=for-the-badge&labelColor=0b7fb8"></a>
 
 <img alt="Android 8.1+" src="https://img.shields.io/badge/Android-8.1%2B-3ddc84?style=flat-square&logo=android&logoColor=white">
 <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-Jetpack_Compose-7f52ff?style=flat-square&logo=kotlin&logoColor=white">
@@ -112,7 +112,7 @@ When you finish all 97 lessons, the Learn path offers Practice, a blank 4-bar so
 
 ## Install
 
-1. Download `Beatpath-1.0.0.apk` from [Releases](../../releases/latest).
+1. Download `Beatpath-1.1.0.apk` from [Releases](../../releases/latest).
 2. Open it on an Android phone running 8.1 or newer. Your browser or Files app may ask for permission to install unknown apps.
 3. Tap *Start from zero*, or *I already make beats* to unlock every lesson.
 
