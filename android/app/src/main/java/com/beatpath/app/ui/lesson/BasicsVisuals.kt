@@ -55,7 +55,8 @@ fun RainbowKeys(
     Canvas(modifier
         .semantics { contentDescription = "Keyboard from ${Basics.name(view.range.first)} to ${Basics.name(view.range.last)}. Picked: ${picked.sorted().joinToString { Basics.bothNames(it) }.ifEmpty { "none" }}" }
         .pointerInput(view.range, head) {
-            detectTapGestures { o ->
+            // keys sound the instant a finger touches them, like a real piano (not when it lifts)
+            detectTapGestures(onPress = { o ->
                 val top = if (head) 40.dp2px(density) else 4.dp2px(density)
                 if (o.y < top) return@detectTapGestures
                 val ww = size.width / whites.size.toFloat(); val kh = size.height - top
@@ -65,7 +66,7 @@ fun RainbowKeys(
                 }
                 val key = black ?: whites.getOrNull((o.x / ww).toInt().coerceIn(0, whites.size - 1))
                 key?.let(onKey)
-            }
+            })
         }) {
         val top = if (head) 40.dp2px(density) else 4.dp2px(density)
         val ww = size.width / whites.size; val kh = size.height - top

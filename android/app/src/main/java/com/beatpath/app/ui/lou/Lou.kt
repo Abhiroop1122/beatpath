@@ -87,11 +87,14 @@ fun Lou(
     beatPhase: Float? = null,
     reduceMotion: Boolean = com.beatpath.app.ui.aero.Motion.reduce,
     outfit: LouOutfit = LouLook.outfit,
+    /** Where Lou looks, −1..1 on each axis (games point his eyes at what matters). Null: his own look-arounds. */
+    gaze: Offset? = null,
 ) {
     val moodState by rememberUpdatedState(mood)
     val beat by rememberUpdatedState(beatPhase)
     val mouthIn by rememberUpdatedState(mouthOpen)
     val look by rememberUpdatedState(outfit)
+    val lookAt by rememberUpdatedState(gaze)
     val pose = remember { Pose() }
     var t by remember { mutableFloatStateOf(0f) }
     var blink by remember { mutableFloatStateOf(0f) }
@@ -126,7 +129,7 @@ fun Lou(
                         nextLook = time + 1.4f + rnd.nextFloat() * 3.5f
                     }
                 }
-                val (lx, ly) = when (moodState) {
+                val (lx, ly) = lookAt?.let { it.x to it.y } ?: when (moodState) {
                     LouMood.Think -> 0.8f to -0.9f
                     LouMood.Listen -> 0f to -0.2f
                     LouMood.Sad -> 0f to 0.8f

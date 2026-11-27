@@ -21,7 +21,8 @@ Then make real music
 • Chain loops A, B and C into a whole song in the song maker, then export it as MIDI or WAV.
 
 Play with Lou
-• Five mini games that train real skills:
+• Six mini games that train real skills:
+  - Piano Tiles: play real songs as tiles land on the keys
   - Sky Hop: hear if a note goes up or down
   - Beat Run: keep the beat
   - Balloon Pop: name the notes

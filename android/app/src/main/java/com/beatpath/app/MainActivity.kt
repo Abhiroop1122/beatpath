@@ -27,6 +27,7 @@ import com.beatpath.app.ui.home.LoopsScreen
 import com.beatpath.app.ui.home.MeScreen
 import com.beatpath.app.ui.home.PracticeScreen
 import com.beatpath.app.ui.games.SkyHop
+import com.beatpath.app.ui.games.PianoTiles
 import com.beatpath.app.ui.games.BeatRun
 import com.beatpath.app.ui.games.BalloonPop
 import com.beatpath.app.ui.games.ChordCake
@@ -65,6 +66,7 @@ class MainActivity : ComponentActivity() {
         val debuggable = (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
         if (debuggable && intent?.getBooleanExtra("debug_complete_all", false) == true) store.debugCompleteAll()
         if (debuggable) intent?.getIntExtra("debug_xp", 0)?.takeIf { it > 0 }?.let { store.debugAddXp(it) }
+        com.beatpath.app.ui.games.GameDebug.autoplay = debuggable && intent?.getBooleanExtra("autoplay", false) == true
         engine.sfxEnabled = store.sfxOn
         fun applyLook() {
             val eq = store.equipped
@@ -159,6 +161,7 @@ class MainActivity : ComponentActivity() {
                                 onResult = { score, stars -> store.recordGame(r.id, score, stars) }) { control ->
                                 val G = com.beatpath.app.ui.games.Games
                                 when (r.id) {
+                                    G.pianoTiles.id -> PianoTiles(control, engine, sfx)
                                     G.skyHop.id -> SkyHop(control, engine, sfx)
                                     G.beatRun.id -> BeatRun(control, engine, sfx)
                                     G.balloonPop.id -> BalloonPop(control, engine, sfx)

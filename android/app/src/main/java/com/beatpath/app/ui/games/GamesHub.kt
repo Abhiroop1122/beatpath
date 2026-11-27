@@ -117,6 +117,15 @@ private fun GameCard(g: GameInfo, best: Int, modifier: Modifier, onClick: () -> 
 private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawGameArt(id: String, t: Float) {
     val w = size.width; val h = size.height
     when (id) {
+        Games.pianoTiles.id -> {
+            // tiles falling into a little rainbow keyboard
+            val keys = listOf(0, 2, 4, 5, 7, 9, 11); val kw = w / 7f
+            keys.forEachIndexed { i, pc -> drawRoundRect(NoteColors.of(pc).copy(alpha = 0.9f), Offset(i * kw + 1f, h * 0.78f), Size(kw - 2f, h * 0.22f), CornerRadius(4f)) }
+            listOf(2 to 0.0f, 4 to 0.35f, 0 to 0.7f).forEach { (lane, ph) ->
+                val y = ((t + ph) % 1f) * h * 0.7f
+                drawRoundRect(NoteColors.of(keys[lane]), Offset(lane * kw + 3f, y), Size(kw - 6f, h * 0.18f), CornerRadius(6f))
+            }
+        }
         Games.skyHop.id -> {
             for ((i, y) in listOf(0.75f, 0.45f, 0.2f).withIndex()) {
                 val x = w * (0.2f + i * 0.3f)

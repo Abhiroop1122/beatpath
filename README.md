@@ -4,14 +4,14 @@
 
 <br>
 
-<a href="../../releases/latest"><img alt="Download APK" src="https://img.shields.io/badge/⬇_Download-APK_v1.2.0-2f8f1c?style=for-the-badge&labelColor=0b7fb8"></a>
+<a href="../../releases/latest"><img alt="Download APK" src="https://img.shields.io/badge/⬇_Download-APK_v1.2.1-2f8f1c?style=for-the-badge&labelColor=0b7fb8"></a>
 
 <img alt="Android 8.1+" src="https://img.shields.io/badge/Android-8.1%2B-3ddc84?style=flat-square&logo=android&logoColor=white">
 <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-Jetpack_Compose-7f52ff?style=flat-square&logo=kotlin&logoColor=white">
 <img alt="Offline" src="https://img.shields.io/badge/works-offline-0a548f?style=flat-square">
 <img alt="Lessons" src="https://img.shields.io/badge/lessons-125-ff8a1f?style=flat-square">
 <img alt="Tests" src="https://img.shields.io/badge/unit_tests-44_passing-25985a?style=flat-square">
-<img alt="Mini games" src="https://img.shields.io/badge/mini_games-5-ef5b9c?style=flat-square">
+<img alt="Mini games" src="https://img.shields.io/badge/mini_games-6-ef5b9c?style=flat-square">
 
 Beatpath is an Android app that teaches music from the very first note: what a note is, how to find it, how chords and melodies work, and then how to make beats and songs in a Channel Rack and Piano roll modeled on FL Studio. A character called Lou walks you through every step, and everything is written so an 8-year-old can follow it.
 
@@ -92,17 +92,18 @@ The same colors carry into the Studio Piano roll (🌈 in its toolbar). The sour
 
 ## Mini games (new in 1.2)
 
-The Studio tab is now for playing and making music. The lessons stay on the Learn path. Lou stars in five games, and each one trains a real skill:
+The Studio tab is now for playing and making music. The lessons stay on the Learn path. Lou stars in six games, and each one trains a real skill:
 
 | Game | What you do | What it teaches |
 |---|---|---|
+| Piano Tiles | Rainbow tiles fall toward their keys, timed to a real song (Twinkle Twinkle, Ode to Joy, Mary Had a Little Lamb) with a soft band playing along. Touch each key as its tile lands and you play the melody. Long tiles are long notes. The first song is practice. | the keyboard, reading a tune, and note length |
 | Sky Hop | Lou plays two notes, and you choose the cloud the second note went to. Later rounds use small steps and big leaps. | hearing up, down and the same |
 | Beat Run | Lou runs to a drum, and you tap to jump as each block reaches him, right on the beat. Later rounds add the "and" between beats and speed up. | keeping a steady beat |
 | Balloon Pop | Note balloons float up, and you pop each one by tapping its key. The key letters, then the colors, fade away as you improve, and sharps join in. | note names on the keyboard |
 | Chord Cake | Chef Lou takes chord orders. Tap three keys to stack the cake, bottom note first. | building major and minor chords |
 | Echo Lou | Lou hops across five rainbow pads singing a tune that grows, and you repeat it. | remembering melodies |
 
-Games give 1 to 3 stars, keep your best score and earn XP.
+Games give 1 to 3 stars, keep your best score and earn XP. Piano Tiles and Beat Run run on the audio engine's own clock, so what you see always matches what you hear. Lou acts in every game: he looks at what matters, winds up, jumps and lands, and reacts to every hit and miss.
 
 ## Song maker (new in 1.2)
 
@@ -148,7 +149,7 @@ When you finish all 125 lessons, the Learn path offers Practice, a blank 4-bar s
 
 ## Install
 
-1. Download `Beatpath-1.2.0.apk` from [Releases](../../releases/latest).
+1. Download `Beatpath-1.2.1.apk` from [Releases](../../releases/latest).
 2. Open it on an Android phone running 8.1 or newer. Your browser or Files app may ask for permission to install unknown apps.
 3. Tap *Start from zero*, or *I already make beats* to unlock every lesson.
 
@@ -164,7 +165,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
 To open a screen directly while developing, pass its route:
-`adb shell am start -S -n com.beatpath.app/.MainActivity --es route roll.four-chord-loop`. Routes include any lesson id, any game id (`game.skyhop`, `game.beatrun`, `game.balloons`, `game.chordcake`, `game.echo`), `games`, `shop`, `practice`, `practice.mix`, `home` and `studio`.
+`adb shell am start -S -n com.beatpath.app/.MainActivity --es route roll.four-chord-loop`. Routes include any lesson id, any game id (`game.tiles`, `game.skyhop`, `game.beatrun`, `game.balloons`, `game.chordcake`, `game.echo`), `games`, `shop`, `practice`, `practice.mix`, `home` and `studio`.
 
 <details>
 <summary>How it's built</summary>

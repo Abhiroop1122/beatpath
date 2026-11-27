@@ -10,6 +10,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
@@ -44,6 +45,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -74,17 +78,23 @@ import kotlinx.coroutines.delay
 import kotlin.math.sin
 
 /** A mini game: what it teaches, how to play, and the scores that earn 1, 2 and 3 stars. */
-data class GameInfo(val id: String, val title: String, val teaches: String, val how: String, val gel: Gel, val icon: ImageVector, val stars: Triple<Int, Int, Int>) {
+data class GameInfo(val id: String, val title: String, val teaches: String, val how: String, val gel: Gel, val icon: ImageVector, val stars: Triple<Int, Int, Int>,
+                    /** Rhythm games count themselves in with the band (a bar of clicks), so the shell skips its 1-2-3. */
+                    val ownCountIn: Boolean = false) {
     fun starsFor(score: Int) = when { score >= stars.third -> 3; score >= stars.second -> 2; score >= stars.first -> 1; else -> 0 }
 }
 
+/** Debug builds only: games play themselves (through the same code a tap uses) so their timing and animations can be checked. */
+object GameDebug { var autoplay = false }
+
 object Games {
     val skyHop = GameInfo("game.skyhop", "Sky Hop", "Hear if a note goes up, down or stays", "Lou plays two notes. Tap the cloud where the second note went: higher, lower or the same.", Gel.Aqua, Icons.Rounded.Star, Triple(5, 10, 16))
-    val beatRun = GameInfo("game.beatrun", "Beat Run", "Keep a steady beat", "Lou runs to the drum. Tap anywhere to jump when a block reaches him, right on the beat.", Gel.Orange, Icons.Rounded.Star, Triple(8, 16, 26))
+    val beatRun = GameInfo("game.beatrun", "Beat Run", "Keep a steady beat", "Lou runs to the drum. Tap anywhere to jump when a block reaches him, right on the beat.", Gel.Orange, Icons.Rounded.Star, Triple(8, 16, 26), ownCountIn = true)
     val balloonPop = GameInfo("game.balloons", "Balloon Pop", "Find note names on the keyboard", "Balloons float up with a note name. Tap that key before the balloon flies away.", Gel.Pink, Icons.Rounded.Star, Triple(8, 15, 24))
     val chordCake = GameInfo("game.chordcake", "Chord Cake", "Build chords: take, skip, take", "Read the order, then tap three keys to stack the chord. Bottom note first.", Gel.Purple, Icons.Rounded.Star, Triple(3, 6, 9))
-    val echo = GameInfo("game.echo", "Echo Lou", "Remember and repeat a melody", "Watch Lou hop and sing. Then tap the same pads in the same order.", Gel.Grass, Icons.Rounded.Star, Triple(4, 6, 9))
-    val all = listOf(skyHop, beatRun, balloonPop, chordCake, echo)
+    val echo = GameInfo("game.echo", "Echo Lou", "Remember and repeat a melody", "Watch Lou hop and sing. Then tap the same pads in the same order. Three hearts.", Gel.Grass, Icons.Rounded.Star, Triple(4, 6, 9))
+    val pianoTiles = GameInfo("game.tiles", "Piano Tiles", "Play real songs on the keyboard", "Colored tiles fall toward their key. Touch the key as the tile lands and you play the song. The first song is practice.", Gel.Gold, Icons.Rounded.Star, Triple(30, 60, 90), ownCountIn = true)
+    val all = listOf(pianoTiles, skyHop, beatRun, balloonPop, chordCake, echo)
     fun byId(id: String?) = all.firstOrNull { it.id == id }
 }
 
@@ -154,18 +164,24 @@ fun GameShell(info: GameInfo, best: Int, sfx: Sfx, onExit: () -> Unit, onResult:
                             }
                         }
                     }
-                    GelButton("Play", { sfx.select(); score = 0; run++; phase = Phase.Countdown }, Modifier.fillMaxWidth(), gel = Gel.Grass)
+                    GelButton("Play", { sfx.select(); score = 0; run++; phase = if (info.ownCountIn) Phase.Play else Phase.Countdown }, Modifier.fillMaxWidth(), gel = Gel.Grass)
                 }
             }
             Phase.Countdown -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                var n by remember { mutableIntStateOf(3) }
+                // a musician's count-in: 1, 2, 3, in the app's own font, no badge around it
+                var n by remember { mutableIntStateOf(0) }
                 LaunchedEffect(run) {
-                    for (i in 3 downTo 1) { while (leaving) delay(100); n = i; sfx.tap(); delay(650) }
+                    for (i in 1..3) { while (leaving) delay(100); n = i; sfx.tap(); delay(600) }
                     while (leaving) delay(100)   // the count waits while the leave dialog is open
                     sfx.select(); phase = Phase.Play
                 }
-                AnimatedContent(n, transitionSpec = { (scaleIn(spring(dampingRatio = 0.45f, stiffness = 500f), initialScale = 0.4f) + fadeIn()) togetherWith fadeOut(tween(120)) }, label = "cd") { v ->
-                    GelOrb(Modifier.size(140.dp), info.gel) { Text("$v", style = AeroType.Hero.copy(color = Color.White, fontSize = 64.sp)) }
+                AnimatedContent(n, transitionSpec = {
+                    (scaleIn(spring(dampingRatio = 0.55f, stiffness = 420f), initialScale = 1.6f) + fadeIn(tween(140))) togetherWith
+                        (scaleOut(tween(220), targetScale = 0.7f) + fadeOut(tween(180)))
+                }, label = "cd") { v ->
+                    if (v > 0) Text("$v", style = AeroType.Hero.copy(fontSize = 150.sp, lineHeight = 160.sp, color = AeroColors.PrimaryDeep,
+                        shadow = androidx.compose.ui.graphics.Shadow(Color(0xCCFFFFFF), Offset(0f, 0f), 28f)),
+                        modifier = Modifier.semantics { contentDescription = "Count in: $v" })
                 }
             }
             Phase.Play -> Box(Modifier.fillMaxSize().sideSafe()) {
@@ -189,7 +205,7 @@ fun GameShell(info: GameInfo, best: Int, sfx: Sfx, onExit: () -> Unit, onResult:
                     Text("Score $score${if (newBest) " · New best!" else ""}", style = AeroType.H2.copy(color = AeroColors.PrimaryDeep))
                     if (xp > 0) Text("+$xp XP", style = AeroType.H2.copy(color = Color(0xFF9A5200)))
                     else Text(if (stars == 0) "Get ${info.stars.first} to earn your first star." else "", style = AeroType.Body)
-                    GelButton("Play again", { sfx.select(); score = 0; run++; phase = Phase.Countdown }, Modifier.fillMaxWidth(), gel = Gel.Grass)
+                    GelButton("Play again", { sfx.select(); score = 0; run++; phase = if (info.ownCountIn) Phase.Play else Phase.Countdown }, Modifier.fillMaxWidth(), gel = Gel.Grass)
                     GelButton("Back to games", onExit, Modifier.fillMaxWidth(), gel = Gel.Silver)
                 }
                 Confetti(if (stars == 3) run else 0)
@@ -260,3 +276,71 @@ suspend fun gameLoop(control: GameControl, tick: (Long, Long) -> Unit) {
 fun AudioEngine.ping(midi: Int, dur: Float = 0.45f, vel: Float = 0.75f) = playNote(midi, dur, vel, AudioEngine.Timbre.KEYS)
 
 @Suppress("unused") private val keepLinear = LinearEasing
+
+
+/**
+ * The music's own clock for rhythm games. Visuals follow the beat the speaker is actually playing
+ * (the engine's playhead, which includes output latency), so blocks and tiles never drift from the sound.
+ */
+class AudioClock(private val engine: AudioEngine) {
+    private var lastTick = -1; private var loops = 0; private var loopTicks = com.beatpath.app.model.TICKS_PER_BAR; private var base = 0f
+    var bpm = 90; private set
+    var running = false; private set
+    val msPerBeat: Float get() = 60000f / bpm
+    /** Start [pattern] looping; [atBeat] is the beat number the first downbeat counts as. */
+    fun start(pattern: com.beatpath.app.model.Pattern, bpm: Int, atBeat: Float = 0f) {
+        this.bpm = bpm; loopTicks = pattern.lengthTicks; base = atBeat; loops = 0; lastTick = -1
+        engine.play(pattern, bpm); running = true
+    }
+    fun stop() { if (running) engine.stop(); running = false }
+    fun tempo(pattern: com.beatpath.app.model.Pattern, bpm: Int) { this.bpm = bpm; engine.update(pattern, bpm) }
+    /** Beats since start (fractional), or null until the first sample reaches the speaker. */
+    fun beat(): Float? {
+        if (!running) return null
+        val t = engine.playheadTick(); if (t < 0) return null
+        if (lastTick >= 0 && t < lastTick - loopTicks / 2) loops++
+        lastTick = t
+        return base + (loops.toLong() * loopTicks + t) / com.beatpath.app.model.TICKS_PER_BEAT.toFloat()
+    }
+}
+
+/**
+ * Lou as a game character: stands with his feet at ([x], [footY]) in px, squashes and stretches
+ * ([squash] > 0 squashes, < 0 stretches), leans ([lean] degrees), looks where he's told, and casts a
+ * shadow on [groundY] that shrinks as he rises. Always animated (games ignore Calm motion for Lou).
+ */
+@Composable
+fun LouActor(x: Float, footY: Float, width: androidx.compose.ui.unit.Dp, mood: LouMood, squash: Float = 0f, lean: Float = 0f,
+             look: Offset? = null, groundY: Float? = null, beatPhase: Float? = null, outfit: com.beatpath.app.ui.lou.LouOutfit = com.beatpath.app.ui.lou.LouLook.outfit) {
+    val d = androidx.compose.ui.platform.LocalDensity.current.density
+    val wPx = width.value * d; val hPx = wPx * 144f / 171f
+    groundY?.let { gy ->
+        val lift = ((gy - footY) / (hPx * 2f)).coerceIn(0f, 1f)
+        val sw = wPx * 0.7f * (1f - lift * 0.5f)
+        Box(Modifier.offset { androidx.compose.ui.unit.IntOffset((x - sw / 2).toInt(), (gy - 6 * d).toInt()) }
+            .size((sw / d).dp, 12.dp).graphicsLayer { alpha = 0.22f * (1f - lift * 0.6f) }
+            .drawBehind { drawOval(Color(0xFF083A5A)) })
+    }
+    Lou(Modifier.offset { androidx.compose.ui.unit.IntOffset((x - wPx / 2).toInt(), (footY - hPx).toInt()) }.size(width, (hPx / d).dp)
+        .graphicsLayer { scaleX = 1f + squash * 0.55f; scaleY = 1f - squash; rotationZ = lean; transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f) },
+        mood = mood, beatPhase = beatPhase, reduceMotion = false, outfit = outfit, gaze = look)
+}
+
+/** Words that pop up and float away ("Perfect!", "E!", "+1"). */
+class Floater(val text: String, val color: Color, val at: Offset, val born: Long, val big: Boolean = false)
+
+fun androidx.compose.ui.graphics.drawscope.DrawScope.drawFloaters(list: List<Floater>, now: Long, measurer: androidx.compose.ui.text.TextMeasurer) {
+    list.forEach { f ->
+        val k = ((now - f.born) / 900f).coerceIn(0f, 1f); if (k >= 1f) return@forEach
+        val pop = if (k < 0.15f) 0.6f + k / 0.15f * 0.55f else 1.15f - (k - 0.15f) * 0.18f
+        val st = androidx.compose.ui.text.TextStyle(fontFamily = com.beatpath.app.ui.theme.OpenSans, fontWeight = androidx.compose.ui.text.font.FontWeight.ExtraBold,
+            fontSize = (if (f.big) 30 else 22).sp * pop, color = f.color.copy(alpha = (1f - ((k - 0.6f) / 0.4f).coerceIn(0f, 1f))),
+            shadow = androidx.compose.ui.graphics.Shadow(Color(0x99FFFFFF), Offset(0f, 0f), 8f))
+        val l = measurer.measure(f.text, st)
+        drawText(l, topLeft = Offset(f.at.x - l.size.width / 2f, f.at.y - l.size.height / 2f - k * 46 * density))
+    }
+}
+
+/** Ease-out-back: overshoots a little and settles (landings, pops). */
+fun easeOutBack(t: Float): Float { val c1 = 1.70158f; val c3 = c1 + 1; val x = t - 1; return 1 + c3 * x * x * x + c1 * x * x }
+fun easeOutCubic(t: Float): Float { val x = 1 - t.coerceIn(0f, 1f); return 1 - x * x * x }

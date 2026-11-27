@@ -45,6 +45,10 @@ class Sfx(private val e: AudioEngine) {
     fun louHappy() { s(SfxType.BLIP, 79, 0.09f, 0.08f, to = 88); s(SfxType.BLIP, 84, 0.12f, 0.08f, to = 91, delay = 0.1f); s(SfxType.GLITTER, 103, 0.3f, 0.03f, delay = 0.18f) }
     fun louHmm() = s(SfxType.GLIDE, 76, 0.45f, 0.08f, to = 72)
     fun louSurprised() { s(SfxType.BLIP, 76, 0.12f, 0.09f, to = 93); s(SfxType.GLITTER, 105, 0.25f, 0.03f, delay = 0.08f) }
+    /** A balloon pop: a quick bright blip that drops. */
+    fun pop() { s(SfxType.BLIP, 98, 0.06f, 0.09f, to = 74); s(SfxType.GLITTER, 108, 0.16f, 0.03f, delay = 0.01f) }
+    /** A soft whoosh for jumps and throws. */
+    fun whoosh() = e.sfx(SfxSpec(SfxType.SWOOSH, 900.0, 0.18f, 0.05f, freq2 = 2400.0))
     fun louYawn() = s(SfxType.GLIDE, 81, 0.7f, 0.06f, to = 69)
     /** A small sad "aww": two falling glides. */
     fun louSad() { s(SfxType.GLIDE, 79, 0.34f, 0.08f, to = 74); s(SfxType.GLIDE, 75, 0.62f, 0.075f, to = 66, delay = 0.3f) }

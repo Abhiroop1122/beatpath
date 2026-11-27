@@ -1,4 +1,4 @@
-# Beatpath 1.2.0 for Android
+# Beatpath 1.2.1 for Android
 
 Beatpath teaches music theory and melody writing step by step, with an FL Studio-style Studio to practice in. It's written in Kotlin with Jetpack Compose.
 The design file is `../fl duolingo.pen` and the research notes are in `../research/`.
@@ -42,8 +42,9 @@ When every lesson is done, the Learn path shows a course-complete card with Prac
 ## Mini games (Studio tab)
 The Studio tab holds the games, free play and the song maker. Lessons are only on the Learn path.
 - `ui/games/GameKit.kt` has the shared shell: an intro where Lou explains, a 3-2-1 countdown, the hearts and score bar, sad-Lou "Stop playing?" on Back, and results with 1 to 3 stars, best score and XP (`Store.recordGame`).
-- The games: `SkyHop.kt` (hear up, down or the same, then steps and leaps), `BeatRun.kt` (jump on the beat, then the "and"), `BalloonPop.kt` (note names on the rainbow keyboard, with the help fading), `ChordCake.kt` (build major and minor chords as cake layers) and `EchoLou.kt` (repeat a growing pentatonic tune).
-- Debug routes: `--es route game.skyhop` (or `game.beatrun`, `game.balloons`, `game.chordcake`, `game.echo`).
+- `AudioClock` (in GameKit.kt) follows the engine's playhead, which includes output latency, so the rhythm games stay locked to the sound. `LouActor` places Lou with squash, lean, gaze and a ground shadow.
+- The games: `PianoTiles.kt` (play real songs as tiles land on the rainbow keyboard), `SkyHop.kt` (hear up, down or the same, then steps and leaps), `BeatRun.kt` (jump on the beat, then the "and"), `BalloonPop.kt` (note names on the rainbow keyboard, with the help fading), `ChordCake.kt` (build major and minor chords as cake layers) and `EchoLou.kt` (repeat a growing pentatonic tune).
+- Debug routes: `--es route game.tiles` or `game.skyhop` (or `game.beatrun`, `game.balloons`, `game.chordcake`, `game.echo`). Add `--ez autoplay true` in a debug build to watch a game play itself.
 
 ## Song maker
 Free play has loops A, B and C (`Project.switchTo`) and a Song window (`ui/studio/SongView.kt`) with 8 or 16 bar tiles. Play switches between one loop and the whole song (`Project.songPattern()`), and MIDI and WAV export the whole song when it's on.

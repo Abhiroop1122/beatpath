@@ -30,6 +30,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -93,7 +94,14 @@ fun BoxScope.ChordCake(control: GameControl, engine: AudioEngine, sfx: Sfx) {
     var now by remember { mutableLongStateOf(0L) }
     var over by remember { mutableStateOf(false) }
     val wobble = remember { Animatable(0f) }
-    val drop = remember { Animatable(0f) }
+    val drop = remember { Animatable(0f) }          // wrong cake: layers tumble off
+    val serve = remember { Animatable(0f) }         // right cake: slides off to the customer
+    val plateIn = remember { Animatable(1f) }       // the next plate sliding in
+    val ticket = remember { Animatable(0f) }        // the order ticket flipping to a new order
+    val lean = remember { Animatable(0f) }          // Lou leaning in to taste
+    var layerBorn by remember { mutableStateOf(listOf<Long>()) }
+    var louHopAt by remember { mutableLongStateOf(-10_000L) }
+    var shownKeys by remember { mutableStateOf(setOf<Int>()) }   // after a miss: the right keys glow for a moment
 
     fun nextOrder() {
         val white = listOf(60, 65, 67)                       // C, F, G major: all white keys
@@ -103,7 +111,7 @@ fun BoxScope.ChordCake(control: GameControl, engine: AudioEngine, sfx: Sfx) {
             score < 6 -> if (rnd.nextBoolean()) Order(white.random(rnd), false) else Order(whiteMinor.random(rnd), true)
             else -> Order(listOf(60, 62, 64, 65, 67, 69).random(rnd), rnd.nextBoolean())
         }
-        layers = emptyList(); candle = false
+        layers = emptyList(); layerBorn = emptyList(); candle = false
         say = when (score) {
             0 -> say
             3 -> "New: minor cakes! Minor is take, then 3 keys up, then 4 more."
@@ -126,48 +134,69 @@ fun BoxScope.ChordCake(control: GameControl, engine: AudioEngine, sfx: Sfx) {
         val ok = layers.map { it % 12 }.toSet() == want.map { it % 12 }.toSet() && layers.first() % 12 == order.root % 12 && layers.first() == layers.min()
         scope.launch {
             if (ok) {
-                score++; candle = true; mood = LouMood.Cheer; sfx.correct()
+                score++; candle = true; sfx.correct()
                 say = listOf("Yum! ${order.name}!", "Perfect layers!", "A tasty ${order.name}!").random(rnd)
-                layers.sorted().forEach { engine.ping(it, 1.1f, 0.6f) }
-                wobble.animateTo(1f, spring(dampingRatio = 0.3f, stiffness = 300f)); wobble.snapTo(0f)
-                delay(900)
+                // hear how it's built: one note at a time, bottom to top, then all three together
+                val notes = layers.sorted()
+                notes.forEach { engine.ping(it, 0.35f, 0.6f); delay(170) }
+                notes.forEach { engine.ping(it, 1.1f, 0.6f) }
+                launch { wobble.animateTo(1f, spring(dampingRatio = 0.3f, stiffness = 300f)); wobble.snapTo(0f) }
+                lean.animateTo(1f, tween(260)); mood = LouMood.Cheer; lean.animateTo(0f, spring(0.45f, 300f))   // a taste, then a cheer
+                delay(250)
+                serve.animateTo(1f, tween(420, easing = androidx.compose.animation.core.FastOutLinearInEasing))
+                nextOrder(); serve.snapTo(0f); plateIn.snapTo(0f)
+                launch { ticket.snapTo(1f); ticket.animateTo(0f, spring(dampingRatio = 0.6f, stiffness = 300f)) }
+                plateIn.animateTo(1f, tween(380, easing = androidx.compose.animation.core.LinearOutSlowInEasing))
             } else {
                 left = (left - 5000).coerceAtLeast(0); mood = LouMood.Encourage; sfx.miss()
                 val n = want.map { Basics.name(it) }
                 say = if (layers.first() % 12 != order.root % 12 || layers.first() != layers.min()) "The bottom layer must be ${n[0]}. Then take ${n[1]} and ${n[2]}."
                       else "Close! ${order.name} is ${n.joinToString(", ")}."
-                drop.animateTo(1f, tween(420)); drop.snapTo(0f)
-                layers = emptyList()
-                // play the right chord so the ear learns it
+                drop.animateTo(1f, tween(480, easing = androidx.compose.animation.core.FastOutLinearInEasing)); drop.snapTo(0f)
+                layers = emptyList(); layerBorn = emptyList()
+                // show and play the right chord so eyes and ears learn it
+                shownKeys = want.toSet()
+                want.forEach { engine.ping(it, 0.35f, 0.55f); delay(170) }
                 want.forEach { engine.ping(it, 0.9f, 0.55f) }
-                delay(700); busy = false; mood = LouMood.Idle; return@launch
+                delay(900); shownKeys = emptySet(); busy = false; mood = LouMood.Idle; return@launch
             }
-            nextOrder(); busy = false; mood = LouMood.Happy
+            busy = false; mood = LouMood.Happy
         }
     }
 
+    fun addKey(k: Int) {
+        if (busy || control.paused || over || layers.size >= 3) return
+        engine.ping(k, 0.5f); sounding = sounding + k
+        layers = layers + k; layerBorn = layerBorn + now; louHopAt = now
+        if (layers.size == 3) { busy = true; scope.launch { delay(320); check() } }   // let the last layer land before judging
+    }
+    LaunchedEffect(order, busy) { if (GameDebug.autoplay && !busy && layers.isEmpty()) { delay(800); order.notes.forEach { delay(450); addKey(it) } } }
     val land = isLandscape()
     Column(Modifier.fillMaxSize()) {
-        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().clipToBounds()) {   // tumbling layers fall out of view, never over the keys
             val w = constraints.maxWidth.toFloat(); val h = constraints.maxHeight.toFloat()
             val density = androidx.compose.ui.platform.LocalDensity.current.density
             val measurer = rememberTextMeasurer()
             // the order ticket
-            Column(Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(top = 64.dp, end = 16.dp).clayCard(16.dp).padding(horizontal = 14.dp, vertical = 8.dp),
+            Column(Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(top = 64.dp, end = 16.dp).graphicsLayer { rotationX = ticket.value * 90f; cameraDistance = 12f * density }
+                .clayCard(16.dp).padding(horizontal = 14.dp, vertical = 8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("ORDER", style = AeroType.Caps)
                 Text(order.name, style = AeroType.Title.copy(fontSize = 22.sp), modifier = Modifier.semantics { contentDescription = "Order: ${order.name}" })
                 Text("${layers.size} of 3 layers", style = AeroType.Small)
             }
             Canvas(Modifier.fillMaxSize()) {
-                val cx = w * 0.58f; val plateY = h * 0.82f
+                val cx = w * 0.60f + serve.value * w * 0.75f - (1f - plateIn.value) * w * 0.75f; val plateY = h * 0.82f
                 val lw = minOf(w * 0.46f, 230f * density); val lh = 34f * density
                 drawOval(Color(0x22083A5A), Offset(cx - lw * 0.72f, plateY - 4f), Size(lw * 1.44f, 22f * density))
                 drawOval(Brush.verticalGradient(listOf(Color.White, Color(0xFFDCE6EE)), plateY - 12f, plateY + 14f), Offset(cx - lw * 0.7f, plateY - 12f * density), Size(lw * 1.4f, 24f * density))
                 layers.forEachIndexed { i, note ->
-                    val tilt = sin(wobble.value * 6.28f) * 4f * (i + 1)
+                    val born = layerBorn.getOrElse(i) { 0L }
+                    val k = ((now - born) / 300f).coerceIn(0f, 1f)
+                    val dropIn = (1f - easeOutBack(k)) * -150f * density      // each layer falls onto the stack and settles with a bounce
+                    val tilt = sin(wobble.value * 6.28f) * 4f * (i + 1) + drop.value * (if (i % 2 == 0) -50f else 50f)
                     val slide = drop.value * (if (i % 2 == 0) -1 else 1) * w * 0.5f * (i + 1) / 3f
-                    val y = plateY - 10f * density - (i + 1) * lh
+                    val y = plateY - 10f * density - (i + 1) * lh + dropIn + drop.value * drop.value * h * 0.35f
                     val width = lw * (1f - i * 0.12f)
                     rotate(tilt, Offset(cx, y + lh / 2)) {
                         val c = NoteColors.of(note)
@@ -191,20 +220,19 @@ fun BoxScope.ChordCake(control: GameControl, engine: AudioEngine, sfx: Sfx) {
                 drawRoundRect(Color(0x55FFFFFF), Offset(w * 0.1f, h - 14f * density), Size(w * 0.8f, 8f * density), CornerRadius(4f * density))
                 drawRoundRect(if (k > 0.25f) Color(0xFF62B826) else Color(0xFFEF5B6E), Offset(w * 0.1f, h - 14f * density), Size(w * 0.8f * k, 8f * density), CornerRadius(4f * density))
             }
-            // chef Lou (always in a chef's hat in this game)
-            Lou(Modifier.offset { IntOffset((w * 0.04f).toInt(), (h * 0.82f - 110 * density).toInt()) }.size(110.dp, 110.dp), mood = mood,
-                outfit = LouLook.outfit.copy(hat = "hat.chef"))
+            // chef Lou (always in a chef's hat here): hops as each layer lands, leans in to taste a finished cake
+            val hk = ((now - louHopAt) / 260f)
+            val hopY = if (hk in 0f..1f) sin(hk * Math.PI).toFloat() * 18f * density else 0f
+            LouActor(w * 0.17f, h * 0.82f - hopY, 104.dp, mood, squash = if (hk in 0f..0.15f) 0.1f else 0f, lean = lean.value * 16f,
+                look = Offset(0.9f, 0.3f), groundY = h * 0.82f, outfit = LouLook.outfit.copy(hat = "hat.chef"))
             LouBubble(say, Modifier.align(Alignment.TopStart).statusBarsPadding().padding(top = 64.dp, start = 16.dp, end = 170.dp))
             Row(Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 24.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (layers.isNotEmpty() && !busy) ClayChip("↶ Undo", { layers = layers.dropLast(1); sfx.toggleOff() }, gel = Gel.Cream, fontSize = 14)
+                if (layers.isNotEmpty() && !busy) ClayChip("↶ Undo", { layers = layers.dropLast(1); layerBorn = layerBorn.dropLast(1); sfx.toggleOff() }, gel = Gel.Cream, fontSize = 14)
             }
         }
-        RainbowKeys(Basics.KeyView(range = 60..83, letters = score < 6, rainbow = true, sharps = score >= 6), layers.toSet(), sounding, emptySet(), null,
+        RainbowKeys(Basics.KeyView(range = 60..83, letters = score < 6, rainbow = true, sharps = score >= 6), layers.toSet(), sounding, shownKeys, null,
             Modifier.fillMaxWidth().height(if (land) 120.dp else 170.dp).navigationBarsPadding().padding(horizontal = 8.dp, vertical = 8.dp)) { k ->
-            if (busy || control.paused || over || layers.size >= 3) return@RainbowKeys
-            engine.ping(k, 0.5f); sounding = sounding + k
-            layers = layers + k
-            if (layers.size == 3) check()
+            addKey(k)
         }
         LaunchedEffect(sounding) { if (sounding.isNotEmpty()) { delay(250); sounding = emptySet() } }
     }
