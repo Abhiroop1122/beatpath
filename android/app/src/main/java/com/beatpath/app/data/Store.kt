@@ -53,8 +53,53 @@ class Store(context: Context) {
     /** Spaced review: lesson id → (due epoch day, stage). */
     var reviews by mutableStateOf(loadPairs("reviews")); private set
 
-    /** Course order: ear unit, then every Studio lesson. */
-    val order: List<String> = EarIds.all + Curriculum.lessons.map { it.id }
+    /** Course order: Music basics, the ear unit, then every Studio lesson. */
+    val order: List<String> = com.beatpath.app.lessons.Basics.ids + EarIds.all + Curriculum.lessons.map { it.id }
+
+    /** Display title for any lesson id. */
+    fun titleOf(id: String): String = com.beatpath.app.lessons.Basics.byId(id)?.title ?: Curriculum.byId(id)?.title
+        ?: com.beatpath.app.ui.lesson.EarLessons.spec(id).title
+
+    // ---------------- XP shop ----------------
+    /** XP spent in Lou's Shop. The balance is xp − spent; your level always uses lifetime xp. */
+    var spent by mutableStateOf(prefs.getInt("spent", 0)); private set
+    var owned by mutableStateOf(prefs.getStringSet("owned", emptySet())!!.toSet()); private set
+    /** Equipped item per slot (slot name → item id). */
+    var equipped by mutableStateOf(Shop.Slot.entries.mapNotNull { sl -> prefs.getString("eq.${sl.name}", null)?.let { sl to it } }.toMap()); private set
+    val balance: Int get() = (xp - spent).coerceAtLeast(0)
+
+    fun buy(item: Shop.Item): Boolean {
+        if (item.id in owned || balance < item.price) return false
+        spent += item.price; owned = owned + item.id
+        prefs.edit().putInt("spent", spent).putStringSet("owned", owned).apply()
+        equip(item)
+        return true
+    }
+    /** Pay for a mystery box and get a random item you don't own yet (null when you can't). */
+    fun openMystery(rnd: kotlin.random.Random = kotlin.random.Random): Shop.Item? {
+        if (balance < Shop.MYSTERY_PRICE) return null
+        val it = Shop.mystery(owned, rnd) ?: return null
+        spent += Shop.MYSTERY_PRICE; owned = owned + it.id
+        prefs.edit().putInt("spent", spent).putStringSet("owned", owned).apply()
+        equip(it)
+        return it
+    }
+    fun equip(item: Shop.Item?) { item ?: return; if (item.id in owned) setEquipped(item.slot, item.id) }
+    fun unequip(slot: Shop.Slot) = setEquipped(slot, null)
+    private fun setEquipped(slot: Shop.Slot, id: String?) {
+        equipped = if (id == null) equipped - slot else equipped + (slot to id)
+        prefs.edit().putString("eq.${slot.name}", id).apply()
+        onLookChange()
+    }
+    var onLookChange: () -> Unit = {}
+
+    /** The lesson finished last, so the Learn path can pop its tick in. Read once. */
+    private var justCompleted: String? = null
+    fun takeJustCompleted(): String? = justCompleted.also { justCompleted = null }
+
+    /** Studio Piano roll: color notes by pitch (the Music basics rainbow). */
+    var rainbowRoll by mutableStateOf(prefs.getBoolean("rainbowRoll", true)); private set
+    fun changeRainbow(v: Boolean) { rainbowRoll = v; prefs.edit().putBoolean("rainbowRoll", v).apply() }
 
     fun finishOnboarding(jumpAhead: Boolean) {
         onboarded = true
@@ -67,10 +112,15 @@ class Store(context: Context) {
     fun isUnlocked(id: String): Boolean {
         if (unlockAll) return true
         val i = order.indexOf(id)
-        return i <= 0 || order[i - 1] in completed || id in completed
+        // anything you've already passed past stays open (progress from before Music basics was added keeps working)
+        return i <= 0 || order[i - 1] in completed || id in completed || order.drop(i + 1).any { it in completed }
     }
 
-    fun nextLesson(): String? = order.firstOrNull { it !in completed && isUnlocked(it) }
+    /** The first unfinished lesson after the furthest one you've done, else the first unfinished one. */
+    fun nextLesson(): String? {
+        val furthest = order.indexOfLast { it in completed }
+        return order.drop(furthest + 1).firstOrNull { it !in completed && isUnlocked(it) } ?: order.firstOrNull { it !in completed && isUnlocked(it) }
+    }
 
     /** Repeats earn reduced XP (plan §8); the attempt id guards against double awards. */
     fun recordLesson(lessonId: String, attemptId: String, allUnassisted: Boolean): Int {
@@ -79,6 +129,7 @@ class Store(context: Context) {
         val gained = if (lessonId in completed) 5 else 10 + if (allUnassisted) 5 else 0
         xp += gained
         completed = completed + lessonId
+        justCompleted = lessonId
         if (allUnassisted) unassisted = unassisted + lessonId
         practiceDays = practiceDays + LocalDate.now().toString()
         // lessons you needed help with come back for review (1, 3, 7 days); solo passes push them out, then retire them
@@ -114,6 +165,9 @@ class Store(context: Context) {
     fun courseComplete(): Boolean = order.all { it in completed }
 
     /** Debug builds only (emulator checks): mark the course finished, half of it solo, and 3 reviews due today. */
+    /** Debug builds only: add XP to test the shop. */
+    fun debugAddXp(n: Int) { xp += n; prefs.edit().putInt("xp", xp).apply() }
+
     fun debugCompleteAll() {
         completed = order.toSet(); unassisted = order.filterIndexed { i, _ -> i % 2 == 0 }.toSet()
         val today = LocalDate.now().toEpochDay()

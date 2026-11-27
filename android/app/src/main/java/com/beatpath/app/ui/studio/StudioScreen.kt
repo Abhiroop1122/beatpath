@@ -73,6 +73,12 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.unit.sp
 import com.beatpath.app.audio.AudioEngine
 import com.beatpath.app.audio.Sfx
@@ -150,6 +156,7 @@ fun StudioScreen(
     var hintLevel by remember { mutableIntStateOf(0) }
     var usedHelp by remember { mutableStateOf(false) }
     var loops by remember { mutableIntStateOf(0) }
+    var pendingCheck by remember { mutableStateOf(false) }
     var introOpen by remember { mutableStateOf(lesson != null) }
     val track = remember(lesson) { lesson?.let { l -> com.beatpath.app.lessons.Curriculum.levels.firstOrNull { it.number == l.level }?.track } ?: com.beatpath.app.lessons.Track.MELODY }
 
@@ -159,10 +166,17 @@ fun StudioScreen(
     fun edit(p: Project) { if (p == project) return; undo.add(project); if (undo.size > 120) undo.removeAt(0); redo.clear(); project = p }
     fun editPattern(pat: Pattern) = edit(project.copy(pattern = pat))
 
+    /** Move to a step and reset everything for it in the same frame, so nothing from the last step flashes. */
+    fun goToStep(i: Int) {
+        val s = lesson?.steps?.getOrNull(i) ?: return
+        stepIdx = i; hintLevel = 0; tray = null; loops = 0; lastPass = false; pendingCheck = false
+        win = if (s.window == Win.ROLL) Win.ROLL else Win.RACK; focus = s.channel
+        undo.clear(); redo.clear()   // undo never reaches back into the previous step
+    }
     LaunchedEffect(stepIdx) {
         val s = step ?: return@LaunchedEffect
+        if (stepIdx == 0) { win = if (s.window == Win.ROLL) Win.ROLL else Win.RACK; focus = s.channel }
         s.setup?.let { project = it(project) }
-        win = if (s.window == Win.ROLL) Win.ROLL else Win.RACK; focus = s.channel; hintLevel = 0; tray = null; loops = 0
         lou.say(s.say, if (introOpen && stepIdx == 0) LouMood.Happy else LouMood.Idle)
     }
     LaunchedEffect(Unit) { if (lesson == null) lou.say("Free play! Tap steps for a beat, or open the Piano roll.", LouMood.Happy) }
@@ -192,15 +206,24 @@ fun StudioScreen(
 
     fun togglePlay() { if (playing) { engine.stop(); playing = false } else { engine.play(project.pattern, project.bpm); playing = true }; sfx.tap() }
     fun stopAll() { engine.stop(); playing = false }
-    // Back closes the topmost thing first: result tray → (then) leave the screen
-    BackHandler { if (tray != null) tray = null else requestExit() }
+    fun trayCta() {
+        val passed = lastPass
+        tray = null
+        if (passed && lesson != null) {
+            if (stepIdx < lesson.steps.lastIndex) { stopAll(); goToStep(stepIdx + 1) } else { stopAll(); sfx.complete(); onLessonDone(lesson.id, attemptId, !usedHelp) }
+        } else if (!passed) step?.let { lou.say(it.say, LouMood.Idle) }   // back to the task, ready to fix it
+    }
+    // Back closes the topmost thing first: a missed-answer tray (back to fixing it), then leave the screen
+    BackHandler { if (tray != null && !lastPass) trayCta() else if (tray != null) trayCta() else requestExit() }
 
     fun check() {
         val s = step ?: return
         if (s.needsLoops > 0 && loops < s.needsLoops) {
             if (!playing) togglePlay()
-            lou.say("Let's listen first — I'll check after one loop.", LouMood.Listen); return
+            pendingCheck = true
+            lou.say("Let's listen first. I'll check as soon as one loop has played.", LouMood.Listen); return
         }
+        pendingCheck = false
         val v = s.check(project, Meters(playedLoops = loops))
         lastPass = v.pass
         val last = stepIdx == lesson!!.steps.lastIndex
@@ -210,10 +233,14 @@ fun StudioScreen(
             sfx.correct(); lou.react(if (last) LouMood.Cheer else LouMood.Happy); lou.say(v.headline, lou.mood)
             tray = TrayMsg(true, v.headline, v.body, if (last) "Finish lesson" else "Next step", tip = tip)
         } else {
-            sfx.miss(); lou.react(LouMood.Encourage); lou.say(v.body, LouMood.Encourage); usedHelp = true
+            // the tray says what's wrong; Lou keeps it short so the same sentence isn't on screen twice
+            sfx.miss(); lou.react(LouMood.Encourage); lou.say(v.headline, LouMood.Encourage); usedHelp = true
             tray = TrayMsg(false, v.headline, v.body, "Try again", tip = "Stuck? Tap Hint — I'll explain it another way, then show gold outlines.")
         }
     }
+
+    // a listen-first step checks itself once the loop has played
+    LaunchedEffect(loops, pendingCheck) { if (pendingCheck && step != null && loops >= step.needsLoops) check() }
 
     val midiLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("audio/midi")) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
@@ -249,12 +276,15 @@ fun StudioScreen(
     val subtitle = lesson?.let { "${if (it.level == 0) "Practice" else "Level ${it.level}"} · step ${stepIdx + 1} of ${it.steps.size}" } ?: "${project.pattern.bars} bar${if (project.pattern.bars > 1) "s" else ""} · free play"
     fun saveNow() { onSave(project); saved = project; sfx.select(); Toast.makeText(context, "Saved to My loops", Toast.LENGTH_SHORT).show() }
     fun exportOrNudge() { if (project.pattern.channels.all { it.notes.isEmpty() }) lou.say("Add some notes first, then export.", LouMood.Think) else exportMenu = true }
+    /** Three rungs, each different: a clue, then gold outlines (when the step has them), then the idea in other words. */
+    val hintMax = if (step?.hintGhosts?.isNotEmpty() == true) 3 else 2
     fun hint(s: com.beatpath.app.lessons.LessonStep) {
+        if (hintLevel >= hintMax) return
         hintLevel++; usedHelp = true; sfx.select(); lou.react(LouMood.Think)
         lou.say(when {
             hintLevel == 1 -> s.hint
-            s.hintGhosts.isNotEmpty() -> "Look for the gold outlines — they show exactly where. Tap inside each one. ${s.hint}"
-            else -> "Here's the idea again in plain words: ${lesson!!.idea} ${s.hint}"
+            hintLevel == 2 && s.hintGhosts.isNotEmpty() -> "Look for the gold outlines: they show exactly where. Tap inside each one."
+            else -> "Here's the idea in other words: ${lesson!!.idea}"
         }, LouMood.Think)
     }
 
@@ -327,7 +357,7 @@ fun StudioScreen(
         DropdownMenuItem(text = { Text("MIDI for FL Studio (.mid)") }, onClick = { exportMenu = false; midiLauncher.launch("${project.name} - ${project.bpm} BPM.mid") })
         DropdownMenuItem(text = { Text("Audio to share (.wav)") }, onClick = { exportMenu = false; wavLauncher.launch("${project.name} - ${project.bpm} BPM.wav") })
     }
-    val offTask = step != null && lou.bubble != step.say
+    val offTask = step != null && tray == null && !lastPass && lou.bubble != step.say
     val chips: @Composable () -> Unit = {
         // tap a music word to have Lou explain it; after a hint or explanation, one tap brings the task back
         if (terms.isNotEmpty() || offTask) FlowRow(Modifier.padding(top = 6.dp, bottom = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -383,9 +413,9 @@ fun StudioScreen(
                 if (step != null) {
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         GelButton(if (playing) "Stop" else "Listen", { togglePlay() }, Modifier.weight(1f), gel = Gel.Silver, height = 38.dp)
-                        GelButton(if (hintLevel == 0) "Hint" else "More help", { hint(step) }, Modifier.weight(1f), gel = Gel.Silver, height = 38.dp)
+                        GelButton(if (hintLevel == 0) "Hint" else "More help", { hint(step) }, Modifier.weight(1f), gel = Gel.Silver, enabled = hintLevel < hintMax && tray == null, height = 38.dp)
                     }
-                    GelButton("Check", { check() }, Modifier.fillMaxWidth(), gel = Gel.Aqua, height = 42.dp)
+                    GelButton("Check", { if (tray == null) check() }, Modifier.fillMaxWidth(), gel = Gel.Aqua, enabled = tray == null, height = 42.dp)
                 }
             }
         } else Column(Modifier.fillMaxSize().statusBarsPadding()) {
@@ -425,7 +455,12 @@ fun StudioScreen(
                 Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(6.dp).glass(20.dp).padding(horizontal = 8.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Row(verticalAlignment = Alignment.Top) {
                         Lou(Modifier.size(50.dp, 44.dp), mood = lou.mood, mouthOpen = lou.mouth, beatPhase = if (playing) beatPhase else null)
-                        Column(Modifier.weight(1f).padding(start = 4.dp)) {
+                        // fixed height: what Lou says scrolls inside, so the Rack and Piano roll above never shrink or jump
+                        Column(Modifier.weight(1f).height(if (step != null) 118.dp else 64.dp)
+                            // soft fade at the bottom edge says "there's more, scroll"
+                            .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
+                            .drawWithContent { drawContent(); drawRect(Brush.verticalGradient(listOf(Color.Black, Color.Transparent), size.height - 14.dp.toPx(), size.height), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn) }
+                            .verticalScroll(rememberScrollState()).padding(start = 4.dp, bottom = 10.dp)) {
                             lou.bubble?.let { LouBubble(it) }
                             taskLine(); chips()
                         }
@@ -433,8 +468,8 @@ fun StudioScreen(
                     }
                     if (step != null) Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         GelButton(if (playing) "Stop" else "Listen", { togglePlay() }, Modifier.weight(1f), gel = Gel.Silver, height = 40.dp)
-                        GelButton(if (hintLevel == 0) "Hint" else "More help", { hint(step) }, Modifier.weight(1f), gel = Gel.Silver, height = 40.dp)
-                        GelButton("Check", { check() }, Modifier.weight(1.2f), gel = Gel.Aqua, height = 40.dp)
+                        GelButton(if (hintLevel == 0) "Hint" else "More help", { hint(step) }, Modifier.weight(1f), gel = Gel.Silver, enabled = hintLevel < hintMax && tray == null, height = 40.dp)
+                        GelButton("Check", { if (tray == null) check() }, Modifier.weight(1.2f), gel = Gel.Aqua, enabled = tray == null, height = 40.dp)
                     }
                 }
             }
@@ -469,13 +504,10 @@ fun StudioScreen(
             }
         }
 
-        ResultTray(tray, modifier = Modifier.align(Alignment.BottomCenter), onCta = {
-            val passed = lastPass
-            tray = null
-            if (passed && lesson != null) {
-                if (stepIdx < lesson.steps.lastIndex) { stopAll(); stepIdx++ } else { stopAll(); sfx.complete(); onLessonDone(lesson.id, attemptId, !usedHelp) }
-            } else if (!passed && !playing) togglePlay()
-        })
+        // while a result shows, the Rack and Piano roll can't be changed (so a passed answer can't be broken before Next step);
+        // tapping outside a missed-answer tray closes it, like Back
+        if (tray != null) Box(Modifier.fillMaxSize().pointerInput(lastPass) { detectTapGestures { if (!lastPass) trayCta() } })
+        ResultTray(tray, modifier = Modifier.align(Alignment.BottomCenter), onCta = { trayCta() })
 
         flSheet?.let { inf ->
             ModalBottomSheet(onDismissRequest = { flSheet = null }, containerColor = Color(0xFFF3FAFF)) {

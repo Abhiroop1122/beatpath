@@ -1,4 +1,4 @@
-# Beatpath 1.0.1 for Android
+# Beatpath 1.1.0 for Android
 
 Beatpath teaches music theory and melody writing step by step, with an FL Studio-style Studio to practice in. It's written in Kotlin with Jetpack Compose.
 The design file is `../fl duolingo.pen` and the research notes are in `../research/`.
@@ -16,8 +16,9 @@ The design file is `../fl duolingo.pen` and the research notes are in `../resear
 - Hints come in three levels: a clue, then gold outlines showing where to click, then the idea again in other words. "↩ Back to the task" brings the instructions back.
 
 ## Course
-There are 81 lessons:
+There are 97 lessons:
 
+- 16 Music basics lessons (new in 1.1, `lessons/Basics.kt`, screen `ui/lesson/BasicsLesson.kt`). They teach on a rainbow keyboard, a beat bar and a small Piano roll: notes, the letters, finding keys, octaves, half and whole steps, sharps and flats, counting half steps, the major scale, scale numbers, intervals, chords, major and minor, the chords in a key, which note comes next, rhythm, and the Piano roll. Research: `../research/basics-research.md`.
 - 5 ear lessons: high or low, soft or loud, contour, step or leap, and major or minor.
 - 76 Studio lessons in 18 levels, from a first beat to an 8-bar hook with harmony. Levels 1 to 10 cover beats, notes and keys, chords, feel, bass, melody I and II, harmony II and making a track. Levels 11 to 18 cover keys and scales II, harmony lines, melodic rhythm, minor keys and modes, progressions II, melody development, phrases and form, and songwriting.
 
@@ -27,6 +28,8 @@ The Practice tab has three parts:
 - The Daily mix is 8 ear questions, weighted toward the skills you get wrong.
 - Review brings back lessons you needed help with after 1, 3 and 7 days.
 - Drills are endless: high or low, pitch or volume, up or down, step or leap, major or minor, "Which chord?" (C, then F, G or A minor), and melody dictation, where you hear 4 notes and write them in the Piano roll.
+
+The Studio Piano roll's 🌈 button colors notes and keys with the same rainbow (saved in settings).
 
 When every lesson is done, the Learn path shows a course-complete card with Practice, Make a song and Redo for gold.
 
@@ -46,7 +49,14 @@ When every lesson is done, the Learn path shows a course-complete card with Prac
 - Your choices are saved with the loop and used in WAV export.
 - The interface sounds (taps, toggles, correct and miss cues, lesson complete, XP ticks) and Lou's chirps use soft bells with chorus and a long reverb.
 
+## XP and Lou's Shop
+- `data/Shop.kt` lists the items (hats, glasses, Lou colors, sky themes), the mystery box price and the level curve (100 XP for level 2, then 50 more each level).
+- `Store` keeps `spent`, `owned` and `equipped`. The balance is XP minus spent; the level uses lifetime XP, so shopping never lowers it.
+- `ui/lou/LouLook.kt` draws hats and glasses on Lou and swaps his colors. They move with his body, so they bounce, squash and tilt with him.
+- `ui/home/ShopScreen.kt` is the shop. Debug builds accept `--ei debug_xp 1500` and `--es route shop` for testing.
+
 ## Look
+- Buttons and orbs are clay: a matte body on a darker base with fine grain, and they squish down onto the base when pressed (`GelButton`, `GelOrb` in `ui/aero/Aero.kt`). Learn path bubbles use the clay images in `res/drawable-nodpi` (green tick when done, orange star when playable, grey when locked), and a lesson you just finished pops in.
 - The main menu (Welcome and the Home tabs) uses a light sky-blue ripple image with bubbles floating up over it. Panels and buttons there are frosted glass: each one shows a blurred copy of the image behind it.
 - Ear lessons use a sky gradient with the same bubbles, and the Studio uses dark FL-style colors.
 - The font is Open Sans (OFL). Screen changes use spring fades.
@@ -62,15 +72,25 @@ MIDI goes into FL Studio through Piano roll → File → Import MIDI file. WAV i
 ```bash
 JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradlew assembleDebug testDebugUnitTest
 ```
-The 27 unit tests cover:
+The 32 unit tests cover:
 - MIDI export
 - every lesson's setup and checks, with passing and failing answers
 - the sound presets
+- the shop's level math and the mystery box
+- every Music basics question (right and wrong answers), and that each chord, scale and "X + n" sum is correct
 - the practice generators, melody dictation and the spaced-review schedule
 
 The UI check scripts are in `tools/ui-check/`.
 
-To open a screen directly, pass its route: `adb shell am start -S -n com.beatpath.app/.MainActivity --es route <lesson id | ear.high-low | practice | practice.mix | practice.dictation | home | studio | welcome | complete>`.
+To open a screen directly, pass its route: `adb shell am start -S -n com.beatpath.app/.MainActivity --es route <lesson id | basics.note | ear.high-low | practice | practice.mix | practice.dictation | home | studio | welcome | complete>`.
+
+## Smoothness rules
+- Lou's bubble and the bottom buttons keep a fixed space, so nothing moves under your finger after Check. The bubble eases to its new size and its words cross-fade.
+- The result tray slides in and out with no bounce and blocks taps underneath. While it shows, the answer can't be changed.
+- Moving to a new step or page resets everything in the same frame, and undo never reaches into the previous step.
+- A missed answer: the tray says what's wrong and where, the right choice gets a green outline, and Back works like "Try again". Single picks clear; chords and roll notes stay so you can fix them.
+- Hints have up to three different rungs and the button greys out when they're used up.
+- Only one sound plays at a time, and leaving a lesson never leaves app sounds muted.
 
 ## Known gaps
 - On phones narrower than about 400dp, Channel Rack step pads are about 30dp wide, like FL's compact grid. Every pad is 48dp tall.

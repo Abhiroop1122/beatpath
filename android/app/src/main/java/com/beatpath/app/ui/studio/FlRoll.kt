@@ -74,6 +74,7 @@ import com.beatpath.app.model.ChannelKind
 import com.beatpath.app.model.Note
 import com.beatpath.app.model.Pattern
 import com.beatpath.app.model.Pitch
+import com.beatpath.app.model.NoteColors
 import com.beatpath.app.model.TICKS_PER_BAR
 import com.beatpath.app.model.TICKS_PER_BEAT
 import com.beatpath.app.ui.fl.Fl
@@ -171,6 +172,9 @@ fun FlRoll(
                 Text("Snap ", color = Fl.Text3, fontSize = 11.sp)
                 Text(snap.label, color = Fl.Text, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
+            if (!channel.isDrum && !listMode) Text("🌈", fontSize = 13.sp,
+                modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(if (NoteColors.rainbowRoll) Color(0xFF4A5A66) else Fl.Dark).clickable { NoteColors.setRainbow(!NoteColors.rainbowRoll) }
+                    .padding(horizontal = 8.dp, vertical = padV).semantics { contentDescription = if (NoteColors.rainbowRoll) "Rainbow note colors on, tap to turn off" else "Rainbow note colors off, tap to turn on" })
             if (!listMode) Text("Vel", color = if (showVel) Fl.Lime else Fl.Text, fontSize = 12.sp, fontWeight = FontWeight.Bold,
                 modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(Fl.Dark).clickable { showVel = !showVel }.padding(horizontal = 10.dp, vertical = padV)
                     .semantics { contentDescription = if (showVel) "Hide the velocity lane" else "Show the velocity lane" })
@@ -238,7 +242,9 @@ fun FlRoll(
             val measurer = rememberTextMeasurer()
             val vScroll = rememberScrollState()
             val hScroll = rememberScrollState()
-            LaunchedEffect(rows, channel, maxHeight) {
+            val viewH by androidx.compose.runtime.rememberUpdatedState(maxHeight)
+            // re-centre only when the music changes (new rows or channel), never when panels around the roll resize
+            LaunchedEffect(rows, channel) {
                 // wait until the grid has been measured, otherwise the scroll is clamped to 0 (top of the range)
                 kotlinx.coroutines.withTimeoutOrNull(1500) { androidx.compose.runtime.snapshotFlow { vScroll.maxValue }.first { it > 0 } }
                 // open centred on the music: existing notes, else the first outline, else the middle of the range
@@ -246,7 +252,7 @@ fun FlRoll(
                     ?: ghosts.firstOrNull { it.pitch in low..high }?.pitch?.toDouble()
                     ?: ghostChannels.flatMap { current.channel(it).notes }.map { it.pitch }.filter { it in low..high }.takeIf { it.isNotEmpty() }?.average()
                     ?: ((low + high) / 2.0)
-                val y = ((high - focusPitch) * rowPx - with(density) { maxHeight.toPx() } / 2 + rowPx / 2).toInt()
+                val y = ((high - focusPitch) * rowPx - with(density) { viewH.toPx() } / 2 + rowPx / 2).toInt()
                 vScroll.scrollTo(y.coerceAtLeast(0))
             }
             // follow the first lesson ghost horizontally
@@ -292,6 +298,7 @@ fun FlRoll(
                                     contentAlignment = Alignment.CenterEnd,
                                 ) {
                                     val inScale = scale?.contains(p % 12) == true
+                                    if (NoteColors.rainbowRoll && !channel.isDrum) Box(Modifier.align(Alignment.CenterStart).padding(start = 2.dp).size(5.dp, rowH - 4.dp).background(NoteColors.of(p), RoundedCornerShape(2.dp)))
                                     Text(if (channel.isDrum) channel.label else Pitch.flName(p), fontSize = 9.sp, fontWeight = FontWeight.SemiBold,
                                         color = when { black -> Color(0xFFB4BDC4); inScale || p % 12 == 0 -> Color(0xFF2F5E33); else -> Color(0xFF6B747B) },
                                         modifier = Modifier.padding(end = 4.dp))
@@ -397,12 +404,14 @@ fun FlRoll(
                                     if (n.pitch !in low..high) return@forEach
                                     val y = (high - n.pitch) * rowPx; val x = n.startTick * pxPerTick; val w = n.durationTicks * pxPerTick
                                     val sel = n.id in selection
-                                    val top = if (sel) Fl.NoteSel else Color(0xFFC9F3C6); val bot = if (sel) Color(0xFF9DB7EA) else Fl.NoteBottom
+                                    val rb = NoteColors.rainbowRoll && !channel.isDrum
+                                    val top = when { sel -> Fl.NoteSel; rb -> androidx.compose.ui.graphics.lerp(NoteColors.of(n.pitch), Color.White, 0.3f); else -> Color(0xFFC9F3C6) }
+                                    val bot = when { sel -> Color(0xFF9DB7EA); rb -> NoteColors.of(n.pitch); else -> Fl.NoteBottom }
                                     drawRoundRect(Brush.verticalGradient(listOf(top, bot), y + 2f, y + rowPx - 2f), Offset(x + 1f, y + 2f), Size(w - 2f, rowPx - 4f), CornerRadius(4f))
-                                    drawRect(if (sel) Color(0xFF5A77B0) else Fl.NoteEdge, Offset(x + 1f, y + rowPx - 5f), Size(w - 2f, 3f))
+                                    drawRect(if (sel) Color(0xFF5A77B0) else if (rb) androidx.compose.ui.graphics.lerp(NoteColors.of(n.pitch), Color.Black, 0.3f) else Fl.NoteEdge, Offset(x + 1f, y + rowPx - 5f), Size(w - 2f, 3f))
                                     // velocity as a thin bar inside the note (FL shows it in the event editor; this keeps it visible)
                                     drawRect(Color(0x55000000), Offset(x + 3f, y + 4f), Size((w - 6f) * n.velocity / 127f, 2f))
-                                    if (w > 44f) drawText(measurer, Pitch.flName(n.pitch), Offset(x + 6f, y + rowPx / 2 - 9f), TextStyle(color = if (sel) Color(0xFF24406F) else Fl.NoteInk, fontSize = 10.sp, fontWeight = FontWeight.Bold))
+                                    if (w > 44f) drawText(measurer, Pitch.flName(n.pitch), Offset(x + 6f, y + rowPx / 2 - 9f), TextStyle(color = if (sel) Color(0xFF24406F) else if (rb) NoteColors.ink(n.pitch) else Fl.NoteInk, fontSize = 10.sp, fontWeight = FontWeight.Bold))
                                     if (w > 26f) drawRoundRect(Color(0x66FFFFFF), Offset(x + w - 8f, y + rowPx / 2 - 7f), Size(3f, 12f), CornerRadius(2f))
                                 }
                                 if (playheadTick >= 0) drawRect(Color(0xDDFFFFFF), Offset(playheadTick * pxPerTick, 0f), Size(2f, size.height))
@@ -439,7 +448,11 @@ fun FlRoll(
         }
 
         // ---------- selection actions (FL shortcuts printed on each) ----------
-        if (selection.isNotEmpty() && !locked) {
+        // only notes that still exist count (a step change or undo can remove selected notes)
+        val liveIds = current.channel(channel).notes.map { it.id }.toSet()
+        androidx.compose.animation.AnimatedVisibility((selection intersect liveIds).isNotEmpty() && !locked,
+            enter = androidx.compose.animation.expandVertically(androidx.compose.animation.core.spring(dampingRatio = 1f, stiffness = 500f)) + androidx.compose.animation.fadeIn(),
+            exit = androidx.compose.animation.shrinkVertically(androidx.compose.animation.core.spring(dampingRatio = 1f, stiffness = 500f)) + androidx.compose.animation.fadeOut()) {
             Row(Modifier.fillMaxWidth().background(Fl.Title).padding(5.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 fun shift(d: Int) = onEdit(withNotes { l -> l.map { if (it.id in selection) it.copy(pitch = (it.pitch + d).coerceIn(low, high)) else it } })
                 fun vel(v: Int) = onEdit(withNotes { l -> l.map { if (it.id in selection) it.copy(velocity = v) else it } })

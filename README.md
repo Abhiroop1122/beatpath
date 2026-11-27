@@ -9,8 +9,8 @@
 <img alt="Android 8.1+" src="https://img.shields.io/badge/Android-8.1%2B-3ddc84?style=flat-square&logo=android&logoColor=white">
 <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-Jetpack_Compose-7f52ff?style=flat-square&logo=kotlin&logoColor=white">
 <img alt="Offline" src="https://img.shields.io/badge/works-offline-0a548f?style=flat-square">
-<img alt="Lessons" src="https://img.shields.io/badge/lessons-81-ff8a1f?style=flat-square">
-<img alt="Tests" src="https://img.shields.io/badge/unit_tests-27_passing-25985a?style=flat-square">
+<img alt="Lessons" src="https://img.shields.io/badge/lessons-97-ff8a1f?style=flat-square">
+<img alt="Tests" src="https://img.shields.io/badge/unit_tests-32_passing-25985a?style=flat-square">
 
 Beatpath is an Android app that teaches music theory and melody writing in short lessons, from your first beat to an 8-bar hook with harmony. You work in a Channel Rack and Piano roll modeled on FL Studio, and a character called Lou walks you through each step.
 
@@ -69,7 +69,28 @@ Lou in the app is drawn from the same artwork as the banner ([docs/lou.svg](docs
 | Bass | 6 | roots, octaves, 808 basics that lock to the kick |
 | Songwriting | 10, 17, 18 | phrases, verse and chorus, harmonizing a tune, writing an 8-bar hook |
 
-There are 81 lessons: 5 ear-training lessons, then 76 Studio lessons in 18 levels. Each level ends with a jam, and each lesson ends with a tip you can try in FL Studio on a computer.
+There are 97 lessons. The course opens with 16 Music basics lessons, then 5 ear-training lessons, then 76 Studio lessons in 18 levels. Each level ends with a jam, and each Studio lesson ends with a tip you can try in FL Studio on a computer.
+
+## Music basics (new in 1.1)
+
+Before any FL screen, 16 short lessons teach the theory on a tappable keyboard where every note has a rainbow color (C red, D orange, E yellow, F green, G blue, A indigo, B violet).
+
+- Part 1, notes and the keyboard: what a note is, the 7 letters, finding any key from the black-key groups, octaves, half and whole steps, sharps and flats, counting half steps (C + 4 = E), and the major scale rule W W H W W W H.
+- Part 2, how notes fit together: scale numbers and home, intervals, building chords (take, skip, take), major and minor as 4 + 3 and 3 + 4, the chords in a key (I ii iii IV V vi), which note to play next, beats and note lengths, and finally the keyboard turned on its side: the Piano roll.
+
+The same colors carry into the Studio Piano roll (🌈 in its toolbar). The sources behind the theory are in [research/basics-research.md](research/basics-research.md).
+
+## XP and Lou's Shop (new in 1.1)
+
+Every lesson earns XP. Your level and title (Beginner, Beat maker, Melody maker, up to Hitmaker) come from all the XP you've ever earned, and the XP you haven't spent goes into Lou's Shop:
+
+- hats for Lou: party hat, beanie, studio headphones, crown
+- glasses: shades, heart glasses
+- Lou colors: coral, grape, sunny, midnight, and a rainbow Lou that cycles through the note colors
+- sky themes for the menu: sunset and starry dusk
+- a mystery box that gives a random item you don't own yet
+
+Lou wears what you pick everywhere in the app. Open the shop from the XP coin on the Learn path, the Me tab, or the Lesson complete screen.
 
 ## Practice (new in 1.0)
 
@@ -79,11 +100,11 @@ The Practice tab generates its exercises, so it keeps going after the last lesso
 - Review: lessons you needed help with come back after 1, 3 and 7 days, until you pass them on your own.
 - Drills: high or low, pitch or volume, up or down, step or leap, major or minor, which chord, and melody dictation, where you hear four notes and write them in the Piano roll.
 
-When you finish all 81 lessons, the Learn path offers Practice, a blank 4-bar song, or a redo of the lessons you passed with help.
+When you finish all 97 lessons, the Learn path offers Practice, a blank 4-bar song, or a redo of the lessons you passed with help.
 
 ## The app
 
-- The look is Frutiger Aero: a sky-blue ripple background with floating bubbles, and frosted-glass panels and buttons.
+- The look is Frutiger Aero with clay buttons: a sky-blue ripple background with floating bubbles, frosted-glass panels, and soft clay buttons that squish when you press them. Finished lessons on the path show a green clay tick, playable ones an orange clay star.
 - The Studio uses FL Studio's names and shortcuts: Channel Rack (F6), Piano roll (F7), Draw (P), Paint (B), Delete (D), Select (E), snap, velocity and swing. The graphics are drawn from scratch; none come from Image-Line.
 - The phone synthesizes every sound: 4 drum kits (Classic, 808, House, Lo-fi) and 19 instrument presets, among them bell, flute, e-piano, strings, sub bass and wobble bass.
 - You can export a loop as MIDI and open it in FL Studio (*Piano roll → File → Import MIDI file*), or as a WAV file to share.
@@ -116,7 +137,7 @@ To open a screen directly while developing, pass its route:
 - The audio engine plays through a low-latency `AudioTrack`. It has an event scheduler (sixteenths, triplets, swing), a polyBLEP subtractive synth with a Cytomic SVF filter, synthesized drums, a Freeverb-style reverb, and offline rendering for WAV export.
 - Each lesson step is data: Lou's line, one task, ghost outlines, a hint ladder and a `check(project) → Verdict` function.
 - Practice items, dictation lessons and the review schedule are generated in plain Kotlin.
-- 27 unit tests cover every lesson's setup and checks, MIDI export, the sound presets, the practice generators and the review schedule.
+- 32 unit tests cover every lesson's setup and checks, every Music basics answer and its theory, MIDI export, the sound presets, the practice generators and the review schedule.
 - Scripts in `android/tools/ui-check/` open every lesson in both orientations and check tap targets.
 
 </details>

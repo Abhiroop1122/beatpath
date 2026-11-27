@@ -1,4 +1,12 @@
 package com.beatpath.app.ui.home
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.graphics.graphicsLayer
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.RepeatMode
@@ -200,7 +208,10 @@ private data class Section(val number: Int, val name: String, val blurb: String,
 private fun sections(): List<Section> {
     val ear = Section(0, "Ear training", "Hear pitch before you make it.", EarIds.all.map { id ->
         val s = EarLessons.spec(id); Node(id, s.title, s.intro, 2, Icons.Rounded.Hearing, false) }, Gel.Aqua)
-    return listOf(ear) + Curriculum.levels.map { lv ->
+    val basics = listOf(1 to ("Music basics" to "Notes, the keyboard and the rainbow colors."), 2 to ("How notes fit together" to "Counting, scales, chords and what note comes next.")).map { (part, t) ->
+        Section(-3 + part, t.first, t.second, com.beatpath.app.lessons.Basics.lessons.filter { it.part == part }.map { Node(it.id, it.title, it.idea, it.minutes, Icons.Rounded.Piano, false) }, Gel.Orange)
+    }
+    return basics + listOf(ear) + Curriculum.levels.map { lv ->
         val icon = when (lv.track) { Track.BEATS -> Icons.Rounded.GridOn; Track.NOTES, Track.HARMONY, Track.MELODY, Track.BASS -> Icons.Rounded.Piano
             Track.ARRANGE -> Icons.Rounded.MusicNote; Track.SOUND -> Icons.Rounded.Waves; Track.MIX, Track.MASTER -> Icons.Rounded.Tune }
         val gel = when (lv.track) { Track.SOUND, Track.MIX, Track.MASTER -> Gel.Orange; Track.BEATS -> Gel.Aqua; else -> Gel.Grass }
@@ -209,10 +220,11 @@ private fun sections(): List<Section> {
 }
 
 @Composable
-fun LearnPath(store: Store, sfx: Sfx, onPractice: () -> Unit = {}, onSong: () -> Unit = {}, onStart: (String) -> Unit) {
+fun LearnPath(store: Store, sfx: Sfx, onPractice: () -> Unit = {}, onSong: () -> Unit = {}, onShop: () -> Unit = {}, onStart: (String) -> Unit) {
     val secs = remember { sections() }
     val lou = rememberLou(sfx)
     val next = store.nextLesson()
+    val celebrateId = remember { store.takeJustCompleted() }
     var open by remember { mutableStateOf<String?>(null) }
     val listState = rememberLazyListState()
     androidx.activity.compose.BackHandler(enabled = open != null) { open = null }
@@ -230,8 +242,8 @@ fun LearnPath(store: Store, sfx: Sfx, onPractice: () -> Unit = {}, onSong: () ->
             Row(Modifier.fillMaxWidth().glass(20.dp).padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("beatpath", style = AeroType.H2.copy(color = AeroColors.PrimaryDeep), modifier = Modifier.weight(1f))
                 Icon(Icons.Rounded.MusicNote, "Practice days", tint = Color(0xFFB04E06), modifier = Modifier.size(20.dp)); Text("${store.streak()}", style = AeroType.H2.copy(color = Color(0xFFB04E06)))
-                Spacer(Modifier.width(14.dp))
-                Icon(Icons.Rounded.Star, "XP", tint = Color(0xFF9A6A00), modifier = Modifier.size(20.dp)); Text("${store.xp}", style = AeroType.H2.copy(color = Color(0xFF9A6A00)))
+                Spacer(Modifier.width(10.dp))
+                XpPill(store.balance, Modifier.clickable { sfx.tap(); onShop() }.semantics { contentDescription = "${store.balance} XP to spend. Open Lou's Shop" })
             }
         }
         item {
@@ -247,10 +259,10 @@ fun LearnPath(store: Store, sfx: Sfx, onPractice: () -> Unit = {}, onSong: () ->
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 val done = sec.nodes.count { it.id in store.completed }
                 Row(Modifier.fillMaxWidth().glass(22.dp).padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                    GelOrb(Modifier.size(44.dp), sec.gel) { Text(if (sec.number == 0) "♪" else "${sec.number}", style = AeroType.H2.copy(color = Color.White)) }
+                    GelOrb(Modifier.size(44.dp), sec.gel) { Text(when { sec.number == 0 -> "♪"; sec.number < 0 -> "${sec.number + 3}"; else -> "${sec.number}" }, style = AeroType.H2.copy(color = Color.White)) }
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
-                        Text(if (sec.number == 0) "START HERE" else "LEVEL ${sec.number}", style = AeroType.Caps)
+                        Text(when { sec.number == -2 -> "START HERE · BASICS 1"; sec.number == -1 -> "BASICS 2"; sec.number == 0 -> "EAR WARM-UP"; else -> "LEVEL ${sec.number}" }, style = AeroType.Caps)
                         Text(sec.name, style = AeroType.H2)
                         Text(sec.blurb, style = AeroType.Body.copy(fontSize = 13.sp))
                     }
@@ -262,7 +274,7 @@ fun LearnPath(store: Store, sfx: Sfx, onPractice: () -> Unit = {}, onSong: () ->
                     val x = listOf(0, 56, 84, 56, 0, -56, -84, -56)[i % 8]
                     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                         Box(Modifier.offset(x = x.dp)) {
-                            PathOrb(node, unlocked, isDone, gold, current, sec.gel) { sfx.tap(); open = if (open == node.id) null else node.id }
+                            PathOrb(node, unlocked, isDone, gold, current, node.id == celebrateId) { sfx.tap(); open = if (open == node.id) null else node.id }
                         }
                         AnimatedVisibility(open == node.id, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
                             Column(Modifier.padding(top = 10.dp).fillMaxWidth().glass(22.dp).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -295,17 +307,33 @@ private fun CourseComplete(store: Store, sfx: Sfx, onPractice: () -> Unit, onSon
     }
 }
 
+/** Level bubble in clay: green tick when done (every finished lesson), orange star when playable, grey when locked. */
 @Composable
-private fun PathOrb(node: Node, unlocked: Boolean, done: Boolean, gold: Boolean, current: Boolean, gel: Gel, onClick: () -> Unit) {
-    val pulse by rememberInfiniteTransition(label = "orb").animateFloat(1f, 1.08f, infiniteRepeatable(tween(650), RepeatMode.Reverse), label = "p")
-    val g = when { gold -> Gel.Orange; done -> Gel.Grass; unlocked -> gel; else -> Gel.Off }
-    Box(contentAlignment = Alignment.Center) {
-        if (current) Box(Modifier.size(80.dp).scale(pulse).border(3.dp, Color(0x99FFFFFF), CircleShape))
-        GelOrb(Modifier.size(62.dp).clip(CircleShape).clickable(onClick = onClick)
-            .semantics { contentDescription = "${node.title}${if (done) ", completed" else if (!unlocked) ", locked" else ""}" }, g) {
-            Icon(if (!unlocked) Icons.Rounded.Lock else if (done && !gold) Icons.Rounded.Check else if (gold) Icons.Rounded.Star else node.icon, null,
-                tint = if (unlocked) Color.White else Color(0xFF8A97A0), modifier = Modifier.size(28.dp))
+private fun PathOrb(node: Node, unlocked: Boolean, done: Boolean, gold: Boolean, current: Boolean, celebrate: Boolean, onClick: () -> Unit) {
+    val breathe by rememberInfiniteTransition(label = "orb").animateFloat(0f, 1f,
+        infiniteRepeatable(tween(1400, easing = androidx.compose.animation.core.FastOutSlowInEasing), RepeatMode.Reverse), label = "b")
+    val src = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val pressed by src.collectIsPressedAsState()
+    val press by animateFloatAsState(if (pressed) 0.9f else 1f, spring(dampingRatio = 0.45f, stiffness = 700f), label = "press")
+    // a lesson you just finished pops in: starts small, springs past full size, settles
+    val pop = remember { androidx.compose.animation.core.Animatable(if (celebrate) 0.55f else 1f) }
+    LaunchedEffect(celebrate) { if (celebrate) { kotlinx.coroutines.delay(250); pop.animateTo(1f, spring(dampingRatio = 0.38f, stiffness = 260f)) } }
+    val img = when { done -> com.beatpath.app.R.drawable.clay_tick; unlocked -> com.beatpath.app.R.drawable.clay_star; else -> com.beatpath.app.R.drawable.clay_star_locked }
+    Box(Modifier.size(86.dp), contentAlignment = Alignment.Center) {
+        if (current) Box(Modifier.size(84.dp).graphicsLayer { val k = 0.94f + breathe * 0.08f; scaleX = k; scaleY = k; alpha = 0.55f + breathe * 0.35f }
+            .border(3.dp, Color(0xCCFFFFFF), CircleShape))
+        Box(Modifier.size(70.dp)
+            .graphicsLayer { val k = press * pop.value * (if (current) 1f + breathe * 0.03f else 1f); scaleX = k; scaleY = k; translationY = if (current) -breathe * 2.dp.toPx() else 0f }
+            .drawBehind { drawOval(Color(0x30083A5A), Offset(size.width * 0.1f, size.height * 0.86f), Size(size.width * 0.8f, size.height * 0.18f)) }
+            .clip(CircleShape).clickable(src, null, onClick = onClick)
+            .semantics { contentDescription = "${node.title}${if (done) ", completed" else if (!unlocked) ", locked" else ""}" }) {
+            androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(img), null, Modifier.fillMaxSize())
         }
+        if (gold) Box(Modifier.align(Alignment.TopEnd).padding(top = 4.dp, end = 4.dp).size(26.dp).graphicsLayer { scaleX = pop.value; scaleY = pop.value }
+            .background(Brush.verticalGradient(listOf(Color(0xFFFFD86B), Color(0xFFE9A21C))), CircleShape).border(2.dp, Color.White, CircleShape),
+            contentAlignment = Alignment.Center) { Icon(Icons.Rounded.Star, "Solo", tint = Color.White, modifier = Modifier.size(16.dp)) }
+        if (!unlocked) Box(Modifier.align(Alignment.BottomEnd).padding(bottom = 6.dp, end = 6.dp).size(24.dp).background(Color(0xFF8E9AA3), CircleShape).border(2.dp, Color.White, CircleShape),
+            contentAlignment = Alignment.Center) { Icon(Icons.Rounded.Lock, null, tint = Color.White, modifier = Modifier.size(14.dp)) }
     }
 }
 
@@ -323,7 +351,7 @@ fun StudioHub(store: Store, sfx: Sfx, onFree: () -> Unit, onStart: (String) -> U
         GelButton("Free play — empty pattern", { sfx.select(); onFree() }, Modifier.fillMaxWidth(), gel = Gel.Grass)
         val next = store.nextLesson()
         if (next != null) {
-            val title = Curriculum.byId(next)?.title ?: EarLessons.spec(next).title
+            val title = store.titleOf(next)
             GelButton("Continue: $title", { sfx.select(); onStart(next) }, Modifier.fillMaxWidth(), gel = Gel.Aqua)
         } else GelButton("Daily practice", { sfx.select(); onStart(com.beatpath.app.lessons.Practice.MIX) }, Modifier.fillMaxWidth(), gel = Gel.Aqua)
         Text("ALL STUDIO LESSONS", style = AeroType.Caps.copy(color = MenuInk, shadow = MenuGlow))
@@ -403,9 +431,25 @@ fun LoopsScreen(store: Store, engine: AudioEngine, sfx: Sfx, onOpen: (Project) -
 
 // ============================ Me ============================
 @Composable
-fun MeScreen(store: Store, engine: AudioEngine) {
+fun MeScreen(store: Store, engine: AudioEngine, onShop: () -> Unit = {}) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text("Me", style = AeroType.Hero.copy(color = MenuInk, shadow = MenuGlow))
+        Column(Modifier.fillMaxWidth().glass(22.dp).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Lou(Modifier.size(84.dp, 74.dp), mood = LouMood.Happy)
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Lou's Shop", style = AeroType.Title)
+                    Text("Spend XP on hats, glasses, colors and skies.", style = AeroType.Body)
+                }
+            }
+            LevelBar(store.xp, Modifier.fillMaxWidth())
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                XpPill(store.balance)
+                Spacer(Modifier.width(10.dp))
+                GelButton("Open the shop", onShop, Modifier.weight(1f), gel = Gel.Orange)
+            }
+        }
         Column(Modifier.fillMaxWidth().glass(22.dp).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {

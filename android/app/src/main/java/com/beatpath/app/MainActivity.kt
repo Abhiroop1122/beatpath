@@ -16,7 +16,9 @@ import com.beatpath.app.audio.AudioEngine
 import com.beatpath.app.audio.Sfx
 import com.beatpath.app.data.EarIds
 import com.beatpath.app.data.Store
+import com.beatpath.app.lessons.Basics
 import com.beatpath.app.lessons.Curriculum
+import com.beatpath.app.ui.lesson.BasicsLessonScreen
 import com.beatpath.app.lessons.Practice
 import com.beatpath.app.model.Project
 import com.beatpath.app.ui.home.HomeScaffold
@@ -39,6 +41,8 @@ sealed interface Route {
     data class Home(val tab: Tab) : Route
     /** [from] is the tab you came from, so leaving always lands you back where you were. */
     data class Ear(val id: String, val from: Tab = Tab.Learn, val run: Long = System.nanoTime()) : Route
+    data class Shop(val from: Tab = Tab.Learn) : Route
+    data class Basics(val id: String, val from: Tab = Tab.Learn, val run: Long = System.nanoTime()) : Route
     data class Studio(val project: Project, val lessonId: String? = null, val from: Tab = Tab.Learn, val run: Long = System.nanoTime()) : Route
     data class Complete(val lessonId: String, val xp: Int, val unassisted: Boolean, val seconds: Int, val from: Tab = Tab.Learn) : Route
 }
@@ -54,7 +58,16 @@ class MainActivity : ComponentActivity() {
         com.beatpath.app.lessons.Practice.accuracy = { store.accuracy(it.id) }
         val debuggable = (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
         if (debuggable && intent?.getBooleanExtra("debug_complete_all", false) == true) store.debugCompleteAll()
+        if (debuggable) intent?.getIntExtra("debug_xp", 0)?.takeIf { it > 0 }?.let { store.debugAddXp(it) }
         engine.sfxEnabled = store.sfxOn
+        fun applyLook() {
+            val eq = store.equipped
+            com.beatpath.app.ui.lou.LouLook.outfit = com.beatpath.app.ui.lou.LouOutfit(eq[com.beatpath.app.data.Shop.Slot.HAT], eq[com.beatpath.app.data.Shop.Slot.FACE], eq[com.beatpath.app.data.Shop.Slot.SKIN])
+            com.beatpath.app.ui.lou.LouLook.sky = eq[com.beatpath.app.data.Shop.Slot.SKY]
+        }
+        applyLook(); store.onLookChange = { applyLook() }
+        com.beatpath.app.model.NoteColors.rainbowRoll = store.rainbowRoll
+        com.beatpath.app.model.NoteColors.onRainbowChange = { store.changeRainbow(it) }
         val gallery = intent?.getBooleanExtra("lou_gallery", false) == true
         val startRoute = intent?.getStringExtra("route")
         setContent {
@@ -64,7 +77,9 @@ class MainActivity : ComponentActivity() {
                     mutableStateOf<Route>(when {
                         startRoute != null && (Curriculum.byId(startRoute) != null || startRoute == Practice.DICTATION) -> Route.Studio(Project(1, "Debug"), startRoute)
                         startRoute != null && (startRoute in EarIds.all || Practice.isEar(startRoute)) -> Route.Ear(startRoute)
+                        startRoute != null && Basics.byId(startRoute) != null -> Route.Basics(startRoute)
                         startRoute == "practice" -> Route.Home(Tab.Practice)
+                        startRoute == "shop" -> Route.Shop()
                         startRoute == "home" -> Route.Home(Tab.Learn)
                         startRoute == "welcome" -> Route.Welcome
                         startRoute == "complete" -> Route.Complete("debug", 15, true, 74)
@@ -74,7 +89,8 @@ class MainActivity : ComponentActivity() {
                     })
                 }
                 fun start(id: String, from: Tab = Tab.Learn) {
-                    route = if (id in EarIds.all || Practice.isEar(id)) Route.Ear(id, from)
+                    route = if (Basics.byId(id) != null) Route.Basics(id, from)
+                    else if (id in EarIds.all || Practice.isEar(id)) Route.Ear(id, from)
                     else Route.Studio(Project(System.currentTimeMillis(), Curriculum.byId(id)?.title ?: if (id == Practice.DICTATION) "Dictation" else "Lesson"), id, from)
                 }
                 // system Back: other tabs → Learn tab; Lesson complete → where you came from (Learn otherwise exits the app)
@@ -88,16 +104,17 @@ class MainActivity : ComponentActivity() {
                 }, contentKey = { it::class }, label = "route") { r ->
                     when (r) {
                         Route.Welcome -> WelcomeScreen(sfx,
-                            onStart = { store.finishOnboarding(false); route = Route.Ear(EarIds.HIGH_LOW) },
+                            onStart = { store.finishOnboarding(false); route = Route.Basics(Basics.ids.first()) },
                             onJump = { store.finishOnboarding(true); route = Route.Home(Tab.Learn) })
                         is Route.Home -> HomeScaffold(r.tab, sfx, onTab = { route = Route.Home(it) }) {
                             when (r.tab) {
                                 Tab.Learn -> LearnPath(store, sfx, onPractice = { route = Route.Home(Tab.Practice) },
+                                    onShop = { route = Route.Shop(Tab.Learn) },
                                     onSong = { route = Route.Studio(Project(System.currentTimeMillis(), "My song", pattern = com.beatpath.app.model.Pattern(4)), from = Tab.Learn) }) { start(it, Tab.Learn) }
                                 Tab.Practice -> PracticeScreen(store, sfx) { start(it, Tab.Practice) }
                                 Tab.Studio -> StudioHub(store, sfx, onFree = { route = Route.Studio(Project(System.currentTimeMillis(), "Untitled loop"), from = Tab.Studio) }, onStart = { start(it, Tab.Studio) })
                                 Tab.Loops -> LoopsScreen(store, engine, sfx, onOpen = { route = Route.Studio(it, from = Tab.Loops) }, onNew = { route = Route.Studio(Project(System.currentTimeMillis(), "Untitled loop"), from = Tab.Loops) })
-                                Tab.Me -> MeScreen(store, engine)
+                                Tab.Me -> MeScreen(store, engine) { route = Route.Shop(Tab.Me) }
                             }
                         }
                         is Route.Ear -> EarLessonScreen(remember(r.run) { EarLessons.spec(r.id) }, engine, sfx,
@@ -108,6 +125,12 @@ class MainActivity : ComponentActivity() {
                                 route = Route.Complete(r.id, xp, un, secs, r.from)
                             },
                             onAnswer = { kind, ok -> store.recordSkill(Practice.skillOf(kind).id, ok) })
+                        is Route.Basics -> BasicsLessonScreen(remember(r.run) { Basics.byId(r.id)!! }, engine, sfx,
+                            onExit = { route = Route.Home(r.from) },
+                            onFinished = { un, attempt, secs ->
+                                sfx.complete()
+                                route = Route.Complete(r.id, store.recordLesson(r.id, attempt, un), un, secs, r.from)
+                            })
                         is Route.Studio -> StudioScreen(engine, sfx, r.project, Curriculum.byId(r.lessonId) ?: remember(r.run) { Practice.lesson(r.lessonId, r.run) },
                             onSave = { store.saveProject(it) },
                             onExit = { route = Route.Home(r.from) },
@@ -117,7 +140,9 @@ class MainActivity : ComponentActivity() {
                                 route = Route.Complete(id, xp, un, 0, r.from)
                             })
                         is Route.Complete -> LessonCompleteScreen(sfx, r.xp, r.unassisted, r.seconds,
-                            onContinue = { route = Route.Home(r.from) }, onAgain = { start(r.lessonId, r.from) })
+                            onContinue = { route = Route.Home(r.from) }, onAgain = { start(r.lessonId, r.from) },
+                            balance = store.balance, onShop = { route = Route.Shop(r.from) })
+                        is Route.Shop -> com.beatpath.app.ui.home.ShopScreen(store, sfx) { route = Route.Home(r.from) }
                     }
                 }
             }

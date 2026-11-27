@@ -39,6 +39,9 @@ import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.animation.animateContentSize
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -56,9 +59,10 @@ import com.beatpath.app.ui.theme.AeroType
 /** Speech bubble with a little tail pointing at Lou (left). Announced to TalkBack as a live region. */
 @Composable
 fun LouBubble(text: String, modifier: Modifier = Modifier) {
-    AnimatedContent(text, transitionSpec = { (fadeIn(tween(220)) + androidx.compose.animation.scaleIn(androidx.compose.animation.core.spring(dampingRatio = 0.8f, stiffness = 500f), initialScale = 0.97f)) togetherWith fadeOut(tween(120)) using androidx.compose.animation.SizeTransform(clip = false) }, label = "bubble", modifier = modifier) { t ->
-        Box(Modifier.glass(18.dp).padding(horizontal = 14.dp, vertical = 10.dp).semantics { liveRegion = LiveRegionMode.Polite }) {
-            Text(t, style = AeroType.BodyStrong)
+    // one glass card that eases to its new size (no bounce), while the words cross-fade inside it
+    Box(modifier.glass(18.dp).animateContentSize(spring(dampingRatio = 1f, stiffness = 380f)).semantics { liveRegion = LiveRegionMode.Polite }) {
+        androidx.compose.animation.Crossfade(text, animationSpec = tween(200), label = "bubble") { t ->
+            Text(t, style = AeroType.BodyStrong, modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp))
         }
     }
 }
@@ -81,10 +85,13 @@ data class TrayMsg(val good: Boolean, val headline: String, val body: String, va
 /** Glass result tray that slides up after Check. Green-leaf for correct, sun-amber for "not yet". */
 @Composable
 fun ResultTray(msg: TrayMsg?, onCta: () -> Unit, modifier: Modifier = Modifier) {
+    // keep the last message so the tray can slide out with its content instead of vanishing
+    val last = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(msg) }
+    if (msg != null) last.value = msg
     AnimatedVisibility(msg != null, modifier = modifier,
-        enter = slideInVertically(spring(Spring.DampingRatioLowBouncy, Spring.StiffnessMediumLow)) { it },
-        exit = slideOutVertically(tween(160)) { it }) {
-        val m = msg ?: return@AnimatedVisibility
+        enter = slideInVertically(spring(Spring.DampingRatioNoBouncy, Spring.StiffnessMediumLow)) { it } + fadeIn(tween(160)),
+        exit = slideOutVertically(tween(220, easing = androidx.compose.animation.core.FastOutLinearInEasing)) { it } + fadeOut(tween(200))) {
+        val m = last.value ?: return@AnimatedVisibility
         val edge = if (m.good) AeroColors.Leaf else AeroColors.Amber
         val ink = if (m.good) AeroColors.LeafDeep else Color(0xFF6B4300)
         val land = isLandscape()
@@ -92,6 +99,7 @@ fun ResultTray(msg: TrayMsg?, onCta: () -> Unit, modifier: Modifier = Modifier) 
             Modifier.widthIn(max = 640.dp).fillMaxWidth()
                 .clip(RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp))
                 .background(Brush.verticalGradient(listOf(Color(0xFFFFFFFF), if (m.good) Color(0xFFE3F8E9) else Color(0xFFFFF3D6))))
+                .pointerInput(Unit) { detectTapGestures { } }   // taps on the tray never reach the buttons underneath
                 .navigationBarsPadding().padding(horizontal = 18.dp, vertical = if (land) 12.dp else 18.dp)
                 .semantics { liveRegion = LiveRegionMode.Polite },
             verticalArrangement = Arrangement.spacedBy(if (land) 6.dp else 10.dp),

@@ -84,10 +84,12 @@ fun Lou(
     mouthOpen: Float = 0f,
     beatPhase: Float? = null,
     reduceMotion: Boolean = false,
+    outfit: LouOutfit = LouLook.outfit,
 ) {
     val moodState by rememberUpdatedState(mood)
     val beat by rememberUpdatedState(beatPhase)
     val mouthIn by rememberUpdatedState(mouthOpen)
+    val look by rememberUpdatedState(outfit)
     val pose = remember { Pose() }
     var t by remember { mutableFloatStateOf(0f) }
     var blink by remember { mutableFloatStateOf(0f) }
@@ -136,7 +138,7 @@ fun Lou(
 
     Canvas(modifier.semantics { contentDescription = "Lou, your guide, looking ${mood.name.lowercase()}" }) {
         @Suppress("UNUSED_VARIABLE") val f = frame
-        drawLou(pose, moodState, t, t - moodSince, blink, beat, reduceMotion)
+        drawLou(pose, moodState, t, t - moodSince, blink, beat, reduceMotion, look)
     }
 }
 
@@ -165,10 +167,13 @@ private fun smooth(e0: Float, e1: Float, x: Float): Float { val k = ((x - e0) / 
  * whites; the smile widens, flattens or opens into a talking mouth; the speaker pumps on the beat and
  * the arm lines sway. At rest with mood Idle he matches the SVG exactly.
  */
-private fun DrawScope.drawLou(pose: Pose, mood: LouMood, t: Float, since: Float, blink: Float, beatPhase: Float?, still: Boolean) {
+private fun DrawScope.drawLou(pose: Pose, mood: LouMood, t: Float, since: Float, blink: Float, beatPhase: Float?, still: Boolean, outfit: LouOutfit = LouOutfit()) {
     val A = LouArt
+    val skin = skinOf(outfit.skin, t)
+    // a hat pokes above his head, so leave room for it inside the canvas
+    val headroom = if (outfit.hat != null) 30f else 0f
     // fit the 171 × 144 artwork into the canvas, centred, standing on the bottom edge
-    val s = min(size.width / A.WIDTH, size.height / A.HEIGHT)
+    val s = min(size.width / A.WIDTH, size.height / (A.HEIGHT + headroom))
     val ox = (size.width - A.WIDTH * s) / 2f
     val oy = size.height - A.HEIGHT * s
 
@@ -221,20 +226,20 @@ private fun DrawScope.drawLou(pose: Pose, mood: LouMood, t: Float, since: Float,
             fun footAngle(side: Float) = if (still) 0f else
                 -side * (2.5f * (0.5f + 0.5f * sin(t * 1.25f + side * 2f)) + pump * 7f)
             drawContext.canvas.saveLayer(Rect(-30f, -40f, A.WIDTH + 30f, A.HEIGHT + 20f), androidx.compose.ui.graphics.Paint())
-            drawPath(A.body.path, A.body.color)
+            drawPath(A.body.path, skin.tint(A.body.color))
             for (limb in Limbs) {
                 val ang = if (limb.hand) handAngle(limb.side) else footAngle(limb.side)
                 if (kotlin.math.abs(ang) < 0.01f) continue
                 clipPath(limb.cut) { drawPath(A.body.path, Color.Black, blendMode = androidx.compose.ui.graphics.BlendMode.Clear) }
-                rotate(ang, limb.pivot) { clipPath(limb.patch) { drawPath(A.body.path, A.body.color) } }
+                rotate(ang, limb.pivot) { clipPath(limb.patch) { drawPath(A.body.path, skin.tint(A.body.color)) } }
             }
             drawContext.canvas.restore()
-            drawPath(A.belly.path, A.belly.color)
+            drawPath(A.belly.path, skin.tint(A.belly.color))
 
             // arm lines and the little shadow under each hand move with that hand
             for ((side, parts) in listOf(-1f to listOf(A.armL, A.shadeL), 1f to listOf(A.armR, A.shadeR))) {
                 val limb = Limbs.first { it.hand && it.side == side }
-                rotate(handAngle(side), limb.pivot) { parts.forEach { drawPath(it.path, it.color) } }
+                rotate(handAngle(side), limb.pivot) { parts.forEach { drawPath(it.path, skin.tint(it.color)) } }
             }
 
             // speaker: the cone pumps on the beat (and a little while he talks)
@@ -254,7 +259,7 @@ private fun DrawScope.drawLou(pose: Pose, mood: LouMood, t: Float, since: Float,
                 val openK = if (l < 0.42f) (0.42f - l) / 0.42f else 0f
                 val closeK = max(if (l > 0.42f) (l - 0.42f) / 0.58f else 0f, blink)
                 scale(pose.eyeScale, pivot = wb.center) {
-                    rotate(side * pose.browTilt * 0.5f, lid.bounds.center) { drawPath(lid.path, lid.color) }
+                    rotate(side * pose.browTilt * 0.5f, lid.bounds.center) { drawPath(lid.path, skin.tint(lid.color)) }
                     // the white grows upward from its bottom edge, staying inside the dome
                     val grow = 1f + openK * (lid.bounds.bottom - lid.bounds.top) / wb.height * 0.55f
                     val eyeArea = Path().apply { op(white.path, lid.path, androidx.compose.ui.graphics.PathOperation.Union) }
@@ -263,12 +268,15 @@ private fun DrawScope.drawLou(pose: Pose, mood: LouMood, t: Float, since: Float,
                             drawPath(white.path, white.color)
                             clipPath(white.path) {
                                 translate(pose.lookX * wb.width * 0.16f, pose.lookY * wb.height * 0.22f) { drawPath(pupil.path, pupil.color) }
-                                if (closeK > 0.001f) drawRect(lid.color, Offset(wb.left - 1f, wb.top - 1f), Size(wb.width + 2f, (wb.height + 2f) * closeK))
+                                if (closeK > 0.001f) drawRect(skin.tint(lid.color), Offset(wb.left - 1f, wb.top - 1f), Size(wb.width + 2f, (wb.height + 2f) * closeK))
                             }
                         }
                     }
                 }
             }
+
+            drawFace(outfit.face)
+            drawHat(outfit.hat, t)
 
             // mouth: his own smile, widened or flattened by mood; opens into a round mouth when he talks
             val m = A.mouth; val mb = m.bounds; val mc = mb.center

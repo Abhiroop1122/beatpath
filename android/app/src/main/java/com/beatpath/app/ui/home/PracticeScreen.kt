@@ -83,7 +83,7 @@ fun PracticeScreen(store: Store, sfx: Sfx, onStart: (String) -> Unit) {
             Text("REVIEW${if (due.isNotEmpty()) " · ${due.size} DUE" else ""}", style = AeroType.Caps)
             if (due.isEmpty()) Text("Nothing due. Tricky lessons come back here.", style = AeroType.Body)
             due.forEach { id ->
-                val title = Curriculum.byId(id)?.title ?: EarLessons.spec(id).title
+                val title = store.titleOf(id)
                 Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { sfx.select(); onStart(id) }.padding(vertical = 10.dp, horizontal = 6.dp)
                     .semantics { contentDescription = "Review $title" }, verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Rounded.Replay, null, tint = AeroColors.PrimaryDeep, modifier = Modifier.size(20.dp))

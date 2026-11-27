@@ -60,6 +60,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.graphicsLayer
 import com.beatpath.app.audio.AudioEngine
 import com.beatpath.app.audio.Sfx
 import com.beatpath.app.data.EarIds
@@ -122,16 +123,22 @@ fun EarLessonScreen(spec: EarSpec, engine: AudioEngine, sfx: Sfx, onExit: () -> 
     var heard by remember { mutableStateOf(setOf<String>()) }
     var louHigh by remember { mutableStateOf<Boolean?>(null) }
     var confirmExit by remember { mutableStateOf(false) }
-    BackHandler { confirmExit = true }
+    var audioJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    /** One sound at a time: a new one (or a new question) cancels the last, and app sounds always come back on. */
+    fun launchAudio(block: suspend kotlinx.coroutines.CoroutineScope.() -> Unit): kotlinx.coroutines.Job {
+        audioJob?.cancel()
+        return scope.launch { try { block() } finally { playing = null; engine.quietSfx = false } }.also { audioJob = it }
+    }
+    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { audioJob?.cancel(); engine.quietSfx = false } }
     fun kindOf(it: EarItem) = it.kind ?: spec.kind
 
-    fun tone(id: String, midi: Int, vel: Float, dur: Float = 0.7f) = scope.launch {
+    fun tone(id: String, midi: Int, vel: Float, dur: Float = 0.7f) = launchAudio {
         engine.quietSfx = true; lou.quiet(); lou.mood = LouMood.Listen
         playing = id; engine.playNote(midi, dur, vel, AudioEngine.Timbre.PURE)
         delay((dur * 1000).toLong() + 250); if (playing == id) playing = null
         engine.quietSfx = false
     }
-    fun pair(it: EarItem, slow: Boolean = false) = scope.launch {
+    fun pair(it: EarItem, slow: Boolean = false) = launchAudio {
         engine.quietSfx = true; lou.quiet(); lou.mood = LouMood.Listen
         if (kindOf(it) == EarKind.ChordSpot) {
             // home chord C, then F (IV), G (V) or A minor (vi) — close voicings so only the colour changes
@@ -140,13 +147,13 @@ fun EarLessonScreen(spec: EarSpec, engine: AudioEngine, sfx: Sfx, onExit: () -> 
             playing = "A"; listOf(48, 60, 64, 67).forEach { n -> engine.playNote(n, len, 0.55f, AudioEngine.Timbre.KEYS) }
             delay((len * 1000).toLong() + if (slow) 350 else 150)
             playing = "B"; (listOf(second.first() - 12) + second).forEach { n -> engine.playNote(n, len, 0.55f, AudioEngine.Timbre.KEYS) }
-            delay((len * 1000).toLong() + 300); playing = null; engine.quietSfx = false; return@launch
+            delay((len * 1000).toLong() + 300); playing = null; engine.quietSfx = false; return@launchAudio
         }
         if (kindOf(it) == EarKind.ChordQuality) {
             // one chord: root, third (major 4 / minor 3 semitones up), fifth — played together
             val third = if (it.b == 1) 3 else 4
             playing = "A"; listOf(0, third, 7).forEach { iv -> engine.playNote(it.a + iv, if (slow) 1.6f else 1.1f, 0.6f, AudioEngine.Timbre.KEYS) }
-            delay(if (slow) 1900 else 1400); playing = null; engine.quietSfx = false; return@launch
+            delay(if (slow) 1900 else 1400); playing = null; engine.quietSfx = false; return@launchAudio
         }
         val d = if (slow) 1f else 0.65f
         playing = "A"; engine.playNote(it.a, d, it.velA, AudioEngine.Timbre.PURE); delay((d * 1000).toLong() + if (slow) 450 else 220)
@@ -162,8 +169,17 @@ fun EarLessonScreen(spec: EarSpec, engine: AudioEngine, sfx: Sfx, onExit: () -> 
         EarKind.ChordSpot -> when (it.b) { 0 -> Ans.IV; 1 -> Ans.V; else -> Ans.Vi }
     }
 
+    fun trayCta() {
+        val item = spec.items[step - first]
+        tray = null
+        if (lastGood) {
+            if (step + 1 >= total) onFinished(!helped, attempt, ((System.currentTimeMillis() - started) / 1000).toInt()) else step++
+        } else { sel = null; pair(item, slow = true) }
+    }
+    BackHandler { if (tray != null) trayCta() else confirmExit = true }
+
     LaunchedEffect(step) {
-        sel = null
+        audioJob?.cancel(); sel = null
         when {
             teach && step == 0 -> lou.say(spec.intro + " Tap HIGH, then LOW.", LouMood.Happy)
             else -> { lou.say(when (kindOf(spec.items[step - first])) { EarKind.HigherPad -> if (teach) "Ears only now. Which pad is higher?" else "Which pad is higher? Tap a pad to hear it again."; EarKind.SoftLoud -> "Higher, or the same note played louder?"; EarKind.Contour -> "Does the second note go up, down, or stay?"
@@ -174,6 +190,7 @@ fun EarLessonScreen(spec: EarSpec, engine: AudioEngine, sfx: Sfx, onExit: () -> 
     }
 
     val land = isLandscape()
+    val progress by animateFloatAsState((step + if (tray?.good == true) 1 else 0) / total.toFloat(), spring(dampingRatio = 1f, stiffness = 120f), label = "progress")
     AeroBackground {
         Column(Modifier.fillMaxSize().sideSafe().statusBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = if (land) 4.dp else 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -184,7 +201,7 @@ fun EarLessonScreen(spec: EarSpec, engine: AudioEngine, sfx: Sfx, onExit: () -> 
                 Box(Modifier.weight(1f).height(16.dp).drawBehind {
                     val r = CornerRadius(size.height / 2)
                     drawRoundRect(Color(0x66FFFFFF), cornerRadius = r)
-                    val w = size.width * (step / total.toFloat()).coerceAtLeast(0.04f)
+                    val w = size.width * progress.coerceAtLeast(0.04f)
                     drawRoundRect(Brush.verticalGradient(listOf(Color(0xFF9BE15A), Color(0xFF2F8F1C))), size = Size(w, size.height), cornerRadius = r)
                     drawRoundRect(Color(0x88FFFFFF), Offset(4f, 2f), Size((w - 8f).coerceAtLeast(0f), size.height * 0.35f), r)
                     drawRoundRect(Color(0xAAFFFFFF), cornerRadius = r, style = androidx.compose.ui.graphics.drawscope.Stroke(1.5f))
@@ -218,27 +235,27 @@ fun EarLessonScreen(spec: EarSpec, engine: AudioEngine, sfx: Sfx, onExit: () -> 
                     if (k == EarKind.ChordSpot) {
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             listOf(Ans.IV to "F · IV", Ans.V to "G · V", Ans.Vi to "Am · vi").forEach { (a, l) ->
-                                Pad(l, sel == a, result, false, Modifier.weight(1f).height(if (land) 108.dp else 118.dp)) { if (tray == null) { sel = a; sfx.select() } }
+                                Pad(l, sel == a, result, false, Modifier.weight(1f).height(if (land) 108.dp else 118.dp), correct = right(it) == a) { if (tray == null) { sel = a; sfx.select() } }
                             }
                         }
                     } else if (k == EarKind.StepLeap || k == EarKind.ChordQuality) {
                         val opts = if (k == EarKind.StepLeap) listOf(Ans.Step to "Step", Ans.Leap to "Leap") else listOf(Ans.Major to "Major · bright", Ans.Minor to "Minor · dark")
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            opts.forEach { (a, l) -> Pad(l, sel == a, result, false, Modifier.weight(1f).height(if (land) 112.dp else 132.dp)) { if (tray == null) { sel = a; sfx.select() } } }
+                            opts.forEach { (a, l) -> Pad(l, sel == a, result, false, Modifier.weight(1f).height(if (land) 112.dp else 132.dp), correct = right(it) == a) { if (tray == null) { sel = a; sfx.select() } } }
                         }
                     } else if (k == EarKind.Contour) {
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             listOf(Ans.Up to "Up ▲", Ans.Same to "Same", Ans.Down to "Down ▼").forEach { (a, l) ->
-                                Pad(l, sel == a, result, false, Modifier.weight(1f).height(if (land) 108.dp else 118.dp)) { if (tray == null) { sel = a; sfx.select() } }
+                                Pad(l, sel == a, result, false, Modifier.weight(1f).height(if (land) 108.dp else 118.dp), correct = right(it) == a) { if (tray == null) { sel = a; sfx.select() } }
                             }
                         }
                     } else {
                         val padH = if (k == EarKind.SoftLoud && land) 110.dp else big
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Pad("Pad A", sel == Ans.A, result, playing == "A", Modifier.weight(1f).height(padH)) { if (tray == null) { sel = Ans.A; tone("A", it.a, it.velA) } }
-                            Pad("Pad B", sel == Ans.B, result, playing == "B", Modifier.weight(1f).height(padH)) { if (tray == null) { sel = Ans.B; tone("B", it.b, it.velB) } }
+                            Pad("Pad A", sel == Ans.A, result, playing == "A", Modifier.weight(1f).height(padH), correct = right(it) == Ans.A) { if (tray == null) { sel = Ans.A; tone("A", it.a, it.velA) } }
+                            Pad("Pad B", sel == Ans.B, result, playing == "B", Modifier.weight(1f).height(padH), correct = right(it) == Ans.B) { if (tray == null) { sel = Ans.B; tone("B", it.b, it.velB) } }
                         }
-                        if (k == EarKind.SoftLoud) Pad("Same note", sel == Ans.Same, result, false, Modifier.fillMaxWidth().height(if (land) 52.dp else 64.dp), small = true) { if (tray == null) { sel = Ans.Same; sfx.select() } }
+                        if (k == EarKind.SoftLoud) Pad("Same note", sel == Ans.Same, result, false, Modifier.fillMaxWidth().height(if (land) 52.dp else 64.dp), small = true, correct = right(it) == Ans.Same) { if (tray == null) { sel = Ans.Same; sfx.select() } }
                     }
                 }
                 if (land) Row(Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
@@ -267,12 +284,14 @@ fun EarLessonScreen(spec: EarSpec, engine: AudioEngine, sfx: Sfx, onExit: () -> 
                     }
                 }
             }
-            if (tray == null) {
+            val barShown by animateFloatAsState(if (tray == null) 1f else 0f, androidx.compose.animation.core.tween(160), label = "bar")
+            run {
                 val isItem = step >= first
                 val enabled = if (isItem) sel != null else heard.size == 2
-                Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = if (land) 8.dp else 16.dp)) {
+                Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = if (land) 8.dp else 16.dp)
+                    .graphicsLayer { alpha = barShown; translationY = (1f - barShown) * 12.dp.toPx() }) {
                     GelButton(if (isItem) "Check" else if (enabled) "Continue" else "Hear both to continue", {
-                        if (!isItem) { sfx.swoosh(); step++ } else {
+                        if (tray != null) Unit else if (!isItem) { sfx.swoosh(); step++ } else {
                             val item = spec.items[step - first]; val ok = sel == right(item)
                             lastGood = ok; onAnswer(kindOf(item), ok)
                             // neutral (unpitched) feedback in ear training so a chime can't bias the next answer
@@ -294,17 +313,11 @@ fun EarLessonScreen(spec: EarSpec, engine: AudioEngine, sfx: Sfx, onExit: () -> 
                             lou.say(body, if (ok) LouMood.Happy else LouMood.Encourage)
                             tray = TrayMsg(ok, if (ok) listOf("Nice ears!", "Spot on!", "You heard it!").random() else "Close — listen once more", body, if (ok) "Continue" else "Hear the difference")
                         }
-                    }, Modifier.align(Alignment.CenterEnd).fillMaxWidth(if (land) 0.53f else 1f), gel = if (enabled) Gel.Grass else Gel.Off, enabled = enabled, height = if (land) 42.dp else 46.dp)
+                    }, Modifier.align(Alignment.CenterEnd).fillMaxWidth(if (land) 0.53f else 1f), gel = if (enabled) Gel.Grass else Gel.Off, enabled = enabled && tray == null, height = if (land) 42.dp else 46.dp)
                 }
             }
         }
-        ResultTray(tray, modifier = Modifier.align(Alignment.BottomCenter), onCta = {
-            val item = spec.items[step - first]
-            tray = null
-            if (lastGood) {
-                if (step + 1 >= total) onFinished(!helped, attempt, ((System.currentTimeMillis() - started) / 1000).toInt()) else step++
-            } else { sel = null; pair(item, slow = true) }
-        })
+        ResultTray(tray, modifier = Modifier.align(Alignment.BottomCenter), onCta = { trayCta() })
         if (confirmExit) AlertDialog(containerColor = Color(0xFFF3FAFF), onDismissRequest = { confirmExit = false },
             confirmButton = { TextButton({ confirmExit = false; onExit() }) { Text("Leave") } },
             dismissButton = { TextButton({ confirmExit = false }) { Text("Keep going") } },
@@ -313,9 +326,9 @@ fun EarLessonScreen(spec: EarSpec, engine: AudioEngine, sfx: Sfx, onExit: () -> 
 }
 
 @Composable
-private fun Pad(label: String, selected: Boolean, result: Boolean?, playing: Boolean, modifier: Modifier, small: Boolean = false, onClick: () -> Unit) {
+private fun Pad(label: String, selected: Boolean, result: Boolean?, playing: Boolean, modifier: Modifier, small: Boolean = false, correct: Boolean = false, onClick: () -> Unit) {
     val s by animateFloatAsState(if (playing) 1.05f else 1f, spring(Spring.DampingRatioMediumBouncy), label = "p")
-    val edge = when { selected && result == true -> AeroColors.Leaf; selected && result == false -> AeroColors.Amber; selected -> AeroColors.Primary; else -> Color(0xCCFFFFFF) }
+    val edge = when { selected && result == true -> AeroColors.Leaf; selected && result == false -> AeroColors.Amber; result == false && correct -> AeroColors.Leaf; selected -> AeroColors.Primary; else -> Color(0xCCFFFFFF) }
     if (small) {
         // short pad: small orb beside the label, so nothing gets cut off
         Row(modifier.scale(s).glass(24.dp).border(3.dp, edge, RoundedCornerShape(24.dp)).clickable(onClick = onClick)
@@ -342,7 +355,7 @@ private fun Pad(label: String, selected: Boolean, result: Boolean?, playing: Boo
 
 /** Lesson complete: Lou celebrates, XP counts up with little ticks. */
 @Composable
-fun LessonCompleteScreen(sfx: Sfx, xp: Int, unassisted: Boolean, seconds: Int, onContinue: () -> Unit, onAgain: () -> Unit) {
+fun LessonCompleteScreen(sfx: Sfx, xp: Int, unassisted: Boolean, seconds: Int, onContinue: () -> Unit, onAgain: () -> Unit, balance: Int = 0, onShop: (() -> Unit)? = null) {
     val lou = rememberLou(sfx)
     var shown by remember { mutableIntStateOf(0) }
     LaunchedEffect(Unit) {
@@ -365,7 +378,10 @@ fun LessonCompleteScreen(sfx: Sfx, xp: Int, unassisted: Boolean, seconds: Int, o
                     Stat("TIME", if (seconds > 0) "%d:%02d".format(seconds / 60, seconds % 60) else "—", Modifier.weight(1f))
                 }
                 GelButton("Continue", onContinue, Modifier.fillMaxWidth(), gel = Gel.Grass, height = 44.dp)
-                GelButton("Practice again", onAgain, Modifier.fillMaxWidth(), gel = Gel.Silver, height = 44.dp)
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    GelButton("Practice again", onAgain, Modifier.weight(1f), gel = Gel.Silver, height = 44.dp)
+                    onShop?.let { GelButton("Shop · ★ $balance", it, Modifier.weight(1f), gel = Gel.Orange, height = 44.dp) }
+                }
             }
         }
     } else AeroBackground {
@@ -383,7 +399,10 @@ fun LessonCompleteScreen(sfx: Sfx, xp: Int, unassisted: Boolean, seconds: Int, o
             Spacer(Modifier.weight(1f))
             GelButton("Continue", onContinue, Modifier.fillMaxWidth(), gel = Gel.Grass)
             Spacer(Modifier.height(10.dp))
-            GelButton("Practice again", onAgain, Modifier.fillMaxWidth(), gel = Gel.Silver)
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                GelButton("Practice again", onAgain, Modifier.weight(1f), gel = Gel.Silver)
+                onShop?.let { GelButton("Shop · ★ $balance", it, Modifier.weight(1f), gel = Gel.Orange) }
+            }
         }
     }
 }

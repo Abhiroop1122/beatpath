@@ -87,6 +87,9 @@ Lessons are Kotlin data, so a new lesson doesn't need a new screen.
    - Update the lesson-count assertion.
    - Open the lesson on the emulator: `adb shell am start -S -n com.beatpath.app/.MainActivity --es route voice.first-inversion`.
 
+### Adding a Music basics lesson
+Add a `BasicsLesson` to `part1` or `part2` in `lessons/Basics.kt`. A lesson is a list of pages built with `show(…)` (explain, with a tune and keys to tap), `tap(…)` (pick a key, build a chord, or play a scale in order), `choose(…)` (multiple choice, optionally by ear) and `roll(…)` (place notes in the small Piano roll). `BasicsTest` checks every answer automatically; add the new id to `tools/ui-check/ids.txt`.
+
 ### Adding an ear-training lesson
 Add an id in `data/Store.kt → EarIds` and a `when` branch in `EarLessons.spec(id)` with an `EarKind`, answers and items. You only need a new `EarKind` when the answer buttons are different. For an endless drill, add a `Practice.Skill` entry and an item generator in `Practice.item`.
 
@@ -102,7 +105,7 @@ Add an id in `data/Store.kt → EarIds` and a `when` branch in `EarLessons.spec(
 3. Genre grooves: lo-fi, house, trap and pop, using the drum kits.
 4. Bass lines II: walking bass, octave bass, 808 glides.
 5. Melody III: call and response, a countermelody across sections.
-6. Arranging: intro, build, drop and breakdown. This needs Song mode (1.3).
+6. Arranging: intro, build, drop and breakdown. This needs Song mode (1.4).
 7. Ear training II: intervals, chord progressions, rhythm dictation.
 
 ## 4. Roadmap
@@ -110,11 +113,12 @@ Add an id in `data/Store.kt → EarIds` and a `when` branch in `EarLessons.spec(
 | Version | Theme | What's in it |
 |---|---|---|
 | 1.0 (done) | Practice | Course-complete card, endless practice (ear drills, melody dictation, Daily mix), spaced review. |
-| 1.1 | Real phones | Measure audio latency on 2 or 3 phones and move to Oboe/AAudio if it's over about 40 ms. Pause for calls and other apps (audio focus), stop on headphone unplug, add a reduce-motion setting that turns the bubbles off, and test with TalkBack. |
-| 1.2 | Content pack 1 | Chord voicings and Ear training II (about 12 lessons), with new glossary terms. |
-| 1.3 | Song mode | Chain patterns A, B and C into 8 to 16 bars (the data model already has `playlist` and `songMode`) and export the whole song as MIDI or WAV. The Arranging pack depends on this. |
-| 1.4 | Content packs 2 and 3 | Genre grooves, Bass II and Melody III, with kits and instrument presets for each genre. |
-| 1.5 | Release prep | A release signing key and AAB, app icon variants, a privacy policy (no data leaves the phone today), opt-in crash reporting, and a Play Store listing with screenshots. |
+| 1.1 (done) | Music basics | 16 theory lessons before the ear unit, on a rainbow keyboard, with the rainbow carried into the Piano roll. |
+| 1.2 | Real phones | Measure audio latency on 2 or 3 phones and move to Oboe/AAudio if it's over about 40 ms. Pause for calls and other apps (audio focus), stop on headphone unplug, add a reduce-motion setting that turns the bubbles off, and test with TalkBack. |
+| 1.3 | Content pack 1 | Chord voicings and Ear training II (about 12 lessons), with new glossary terms. |
+| 1.4 | Song mode | Chain patterns A, B and C into 8 to 16 bars (the data model already has `playlist` and `songMode`) and export the whole song as MIDI or WAV. The Arranging pack depends on this. |
+| 1.5 | Content packs 2 and 3 | Genre grooves, Bass II and Melody III, with kits and instrument presets for each genre. |
+| 1.6 | Release prep | A release signing key and AAB, app icon variants, a privacy policy (no data leaves the phone today), opt-in crash reporting, and a Play Store listing with screenshots. |
 | 2.0 | Play Store | Internal test track, then a closed beta, then production. |
 
 Later ideas:
@@ -140,7 +144,7 @@ cp app/build/outputs/apk/debug/app-debug.apk ../Beatpath-<version>-debug.apk
 
 For every build, add 1 to `versionCode`, set `versionName` in `android/app/build.gradle.kts`, and update `android/README.md`.
 
-GitHub releases use `./gradlew assembleRelease`. That APK is signed with the local debug key so anyone can sideload it. For the Play Store (1.5):
+GitHub releases use `./gradlew assembleRelease`. That APK is signed with the local debug key so anyone can sideload it. For the Play Store (1.6):
 
 1. Create a keystore once and keep it safe. If you lose it, you can't publish updates to the app.
 2. Add a `signingConfigs { release { … } }` block that reads its passwords from `~/.gradle/gradle.properties`, never from the repo, and use it for the release build type.
