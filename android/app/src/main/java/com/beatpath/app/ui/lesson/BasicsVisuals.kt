@@ -108,7 +108,13 @@ fun RainbowKeys(
         // tags and arcs above the keys
         fun cx(k: Int) = if (Basics.isBlack(k)) blackX(k, whites, ww) + ww * 0.31f else whites.indexOf(k) * ww + ww / 2
         val tagStyle = TextStyle(fontFamily = OpenSans, fontWeight = FontWeight.ExtraBold, fontSize = 12.sp, color = AeroColors.PrimaryDeep)
-        view.tags.forEach { (k, t) -> if (k in view.range) centeredText(measurer, t, cx(k), if (view.arcs.isEmpty()) 18.dp2px(density) else 0f, tagStyle) }
+        view.tags.forEach { (k, t) ->
+            if (k !in view.range) return@forEach
+            // a label never spills onto the next key: long ones shrink to the key's width
+            val wide = measurer.measure(t, tagStyle).size.width
+            val style = if (wide > ww * 0.95f) tagStyle.copy(fontSize = tagStyle.fontSize * (ww * 0.95f / wide).coerceAtLeast(0.55f)) else tagStyle
+            centeredText(measurer, t, cx(k), if (view.arcs.isEmpty()) 18.dp2px(density) else 0f, style)
+        }
         view.arcs.forEach { a ->
             if (a.from !in view.range || a.to !in view.range) return@forEach
             val x1 = cx(a.from); val x2 = cx(a.to); val y = top - 7.dp2px(density)

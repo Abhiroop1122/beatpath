@@ -2,7 +2,7 @@ package com.beatpath.app.lessons
 
 /**
  * Plain-language teaching helpers: a glossary Lou can explain on tap, and a pool of short tips
- * (music theory + FL Studio) he shares after correct answers so learning never stops at "correct!".
+ * (music theory) he shares after correct answers so learning never stops at "correct!".
  */
 object Glossary {
     data class Term(val word: String, val pattern: Regex, val meaning: String)
@@ -11,43 +11,43 @@ object Glossary {
         Term(word, Regex("\\b(" + (listOf(word) + alt).joinToString("|") { Regex.escape(it) } + ")\\b", RegexOption.IGNORE_CASE), meaning)
 
     val terms = listOf(
-        t("beat", "A beat is the steady pulse you tap your foot to. Most music has four beats in a bar.", "beats"),
-        t("bar", "A bar is a group of beats — usually four. Bar 1, bar 2… are like the boxes music is counted in.", "bars"),
-        t("step", "In FL Studio a step is a sixteenth note: four steps make one beat. Each pad in the Channel Rack is one step.", "steps"),
-        t("tempo", "Tempo is how fast the beat goes, measured in BPM — beats per minute."),
-        t("BPM", "BPM means beats per minute. 90 BPM is relaxed; 128 is dance speed."),
-        t("backbeat", "The backbeat is beats 2 and 4 — where the clap or snare usually hits."),
-        t("velocity", "Velocity is how hard a note is played. Higher velocity is louder and punchier."),
+        t("beat", "A beat is the steady tick of music, like a clock. It's what you tap your foot to.", "beats"),
+        t("bar", "A bar is a group of beats, usually 4. Music is counted in bars: 1 2 3 4, 1 2 3 4.", "bars"),
+        t("step", "In FL Studio, a step is one little box in the Channel Rack. 4 steps make one beat.", "steps"),
+        t("tempo", "Tempo is how fast the beat goes. We count it in BPM: beats per minute."),
+        t("BPM", "BPM means beats per minute. 90 BPM feels like walking. 128 BPM feels like dancing."),
+        t("backbeat", "The backbeat is beats 2 and 4. That's where the clap or snare usually hits."),
+        t("velocity", "Velocity is how hard a note is played. More velocity means a louder note."),
         t("pitch", "Pitch is how high or low a note sounds."),
-        t("octave", "An octave is the same note, higher or lower — 12 semitones apart. C5 and C6 are an octave apart.", "octaves"),
-        t("semitone", "A semitone is the smallest step on a keyboard: from one key to the very next key, black or white.", "semitones", "half step"),
-        t("whole step", "A whole step is two semitones — skipping one key."),
-        t("scale", "A scale is a set of notes that sound good together, like the white keys from C to C.", "scales"),
-        t("key", "The key is the home base of a song: its home note and the scale it uses."),
-        t("tonic", "The tonic is the home note of a key. Melodies feel finished when they land on it.", "home note"),
-        t("interval", "An interval is the distance between two notes, counted in steps.", "intervals"),
-        t("chord", "A chord is three or more notes played together.", "chords"),
-        t("triad", "A triad is a three-note chord: a root, a third and a fifth.", "triads"),
-        t("root", "The root is the note a chord is named after — C is the root of C major."),
-        t("major", "Major sounds bright and happy. A major chord's middle note sits 4 semitones above the root."),
-        t("minor", "Minor sounds darker or sadder. A minor chord's middle note sits only 3 semitones above the root."),
-        t("progression", "A chord progression is a series of chords played one after another, like C – G – Am – F.", "progressions"),
+        t("octave", "An octave is the same note, higher or lower. It's 12 keys away, like C5 and C6.", "octaves"),
+        t("half step", "A half step is the smallest move: from one key to the very next key, black or white. Grown-ups also call it a semitone.", "half steps", "semitone", "semitones"),
+        t("whole step", "A whole step is two half steps. You skip over one key."),
+        t("scale", "A scale is a set of notes that sound good together, like a staircase. The white keys from C to C make one.", "scales"),
+        t("key", "A song's key is its home note and the family of notes it uses. C major uses the white keys."),
+        t("tonic", "The tonic is the home note. Tunes feel finished when they land on it.", "home note"),
+        t("interval", "An interval is the gap between two notes. Count the letters to name it.", "intervals"),
+        t("chord", "A chord is three or more notes played at the same time.", "chords"),
+        t("triad", "A triad is a chord with 3 notes. Take a note, skip one, take one, skip one, take one.", "triads"),
+        t("root", "The root is the bottom note of a chord. It gives the chord its name, like C in C major."),
+        t("major", "Major sounds bright and happy, like sunshine. Its middle note is 4 half steps above the root."),
+        t("minor", "Minor sounds darker, like a rainy day. Its middle note is only 3 half steps above the root."),
+        t("progression", "A chord progression is a few chords played one after another, like C, G, A minor, F.", "progressions"),
         t("inversion", "An inversion is the same chord with a different note at the bottom.", "inversions"),
-        t("chord tone", "A chord tone is a note that's inside the chord playing right now. They always sound good.", "chord tones"),
-        t("melody", "A melody is a line of single notes you could sing — the tune.", "melodies"),
-        t("motif", "A motif is a short musical idea, a few notes long, that you repeat and change.", "motifs"),
-        t("rest", "A rest is silence on purpose. Gaps make melodies breathe.", "rests"),
-        t("syncopation", "Syncopation puts notes between the beats, which makes rhythm bounce.", "syncopated"),
-        t("leap", "A leap is a jump of more than two semitones in a melody.", "leaps"),
-        t("stepwise", "Stepwise means moving to the next note over — smooth and easy to sing."),
-        t("pentatonic", "The pentatonic scale has five notes (C D E G A) and no clashing notes at all."),
-        t("harmony", "Harmony is two or more notes sounding together — like a second voice under a melody."),
-        t("bassline", "The bassline is the low part. It usually plays the root of each chord.", "bass line"),
-        t("ghost note", "A ghost note is a very quiet hit you feel more than hear.", "ghost notes"),
-        t("swing", "Swing pushes every second sixteenth a little late, so the groove bounces."),
-        t("Piano roll", "FL's Piano roll is where you draw notes: time runs left to right, pitch goes up and down."),
-        t("Channel Rack", "FL's Channel Rack holds every instrument; its pads are steps you switch on to make beats."),
-        t("snap", "Snap decides where notes land on the grid: on beats, half beats or steps."),
+        t("chord tone", "A chord tone is a note inside the chord that's playing right now. It always fits.", "chord tones"),
+        t("melody", "A melody is the tune: a line of single notes you could sing.", "melodies"),
+        t("motif", "A motif is a tiny tune, just a few notes long. You repeat it and change it a little.", "motifs"),
+        t("rest", "A rest is a quiet gap on purpose. It lets the music breathe.", "rests"),
+        t("syncopation", "Syncopation puts notes in between the beats. It makes the rhythm bounce.", "syncopated"),
+        t("leap", "A leap is a jump in a tune, over other notes. Like a frog hopping.", "leaps"),
+        t("stepwise", "Stepwise means moving to the very next note. It sounds smooth and is easy to sing."),
+        t("pentatonic", "The pentatonic scale has just 5 notes, like C D E G A. They all sound good together."),
+        t("harmony", "Harmony is notes sounding together, like a second voice singing along with the tune."),
+        t("bassline", "The bassline is the low part of a song. It often plays the bottom note of each chord.", "bass line"),
+        t("ghost note", "A ghost note is a very quiet hit. You feel it more than you hear it.", "ghost notes"),
+        t("swing", "Swing makes every other step a tiny bit late. It makes the groove bounce."),
+        t("Piano roll", "The Piano roll is where you draw notes in FL Studio. Time goes left to right. High notes are at the top."),
+        t("Channel Rack", "The Channel Rack holds your sounds in FL Studio. Switch its little boxes on to make a beat."),
+        t("snap", "Snap makes notes jump neatly onto the grid lines, like little magnets."),
     )
 
     /** Up to [max] glossary terms that appear in [text], in the order they appear. */
@@ -59,41 +59,43 @@ object Glossary {
 object Tips {
     private val theory = mapOf(
         Track.BEATS to listOf(
-            "Count out loud: \"one-and-two-and\". Your mouth keeps time better than your eyes.",
-            "Kicks often land on beats 1 and 3; snares or claps on 2 and 4. Start there, then break the rule.",
-            "Hi-hats are the clock of a beat — busier hats make a song feel faster without changing tempo.",
-            "Leave space. A beat with fewer hits often hits harder.",
+            "Count out loud: \"1 and 2 and\". Your voice keeps time better than your eyes.",
+            "Kicks often go on beats 1 and 3. Claps go on 2 and 4. Start there, then play around.",
+            "Hi-hats are like a ticking clock. More hi-hats make a beat feel faster.",
+            "Leave some gaps. A beat with fewer hits can hit harder.",
         ),
         Track.NOTES to listOf(
             "Every major scale uses the same recipe: whole, whole, half, whole, whole, whole, half.",
-            "Two white keys with no black key between them — E–F and B–C — are only a semitone apart.",
-            "Middle C is called C5 in FL Studio, but C4 in many other apps. Same note, different label.",
-            "Learn one scale really well before learning many. C major is the white keys.",
+            "E to F and B to C have no black key between them. They are only a half step apart.",
+            "FL Studio calls middle C \"C5\". Some apps call it C4. It's the same note.",
+            "Learn one scale really well first. C major is easy: it's just the white keys.",
         ),
         Track.HARMONY to listOf(
-            "Build a chord by stacking every other note of the scale: skip one, take one.",
-            "The middle note decides major or minor. Lower it by one semitone and major becomes minor.",
-            "Chords that share notes flow smoothly into each other — C and Am share C and E.",
-            "If a progression feels finished, it probably just landed on the home chord.",
+            "Build a chord like this: take a note, skip one, take one, skip one, take one.",
+            "The middle note sets the mood. Move it down one key and a happy chord turns sad.",
+            "Chords that share notes flow nicely into each other. C and A minor share C and E.",
+            "If a row of chords feels finished, it probably just landed on the home chord.",
         ),
         Track.MELODY to listOf(
-            "Sing your melody. If you can't sing it, it's probably too jumpy.",
-            "Put chord tones on beats 1 and 3, and use in-between notes on the off-beats.",
-            "Repeat an idea, then change just one thing. That's how hooks are made.",
-            "After a big jump up, step back down. It sounds natural to the ear.",
-            "Rests are part of the melody. Silence makes the next note matter.",
+            "Sing your tune. If you can't sing it, it might be too jumpy.",
+            "On beats 1 and 3, use notes from the chord. They always fit.",
+            "Play an idea, then play it again with one small change. That's how catchy tunes are made.",
+            "After a big jump up, take a small step back down. It sounds natural.",
+            "Quiet gaps are part of the tune. Silence makes the next note matter.",
         ),
         Track.BASS to listOf(
-            "When in doubt, the bass plays the root of the chord on beat 1.",
-            "Lock the bass with the kick drum and they sound like one big instrument.",
-            "Low notes take up a lot of space — keep basslines simple.",
+            "Not sure what the bass should play? Try the chord's bottom note on beat 1.",
+            "Let the bass play with the kick drum. Together they sound like one big instrument.",
+            "Low notes take up lots of room. Keep basslines simple.",
         ),
         Track.ARRANGE to listOf(
-            "A chorus usually sits higher than the verse — lift the melody to lift the energy.",
-            "Take things away before a big moment so it hits harder when they come back.",
-            "Finish ideas: an 8-bar hook you love beats ten 1-bar loops.",
+            "Choruses often sit higher than verses. Lift the tune to lift the energy.",
+            "Take some sounds away before a big moment. It hits harder when they come back.",
+            "Finish your ideas. One 8-bar tune you love beats ten tiny loops.",
         ),
     )
+    /** FL tips are no longer shown (the app owner removed them); kept here for reference. */
+    @Suppress("unused")
     private val fl = listOf(
         "In FL Studio, press F6 for the Channel Rack and F7 for the Piano roll.",
         "Right-click deletes notes in FL's Piano roll when you're using Draw or Paint.",
@@ -108,11 +110,12 @@ object Tips {
     )
     private var i = 0
 
-    /** Alternates a theory tip for [track] with a general FL tip. */
+    /** The next theory tip for [track], cycling through that track's pool. */
     fun next(track: Track): String {
+        val pool = theoryFor(track)
+        val tip = pool[i % pool.size]
         i++
-        return if (i % 2 == 0) "FL tip: " + fl[(i / 2) % fl.size]
-        else "Theory tip: " + (theory[track] ?: theory[Track.MELODY]!!).let { it[(i / 2) % it.size] }
+        return "Theory tip: $tip"
     }
 
     fun theoryFor(track: Track): List<String> = theory[track] ?: theory[Track.MELODY]!!

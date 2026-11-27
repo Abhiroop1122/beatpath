@@ -1,18 +1,19 @@
 <div align="center">
 
-<img src="docs/banner.svg" alt="beatpath: learn music theory and melody, then make it in FL Studio" width="100%">
+<img src="docs/banner.svg" alt="beatpath: learn music from the first note, then make it in FL Studio" width="100%">
 
 <br>
 
-<a href="../../releases/latest"><img alt="Download APK" src="https://img.shields.io/badge/⬇_Download-APK_v1.1.0-2f8f1c?style=for-the-badge&labelColor=0b7fb8"></a>
+<a href="../../releases/latest"><img alt="Download APK" src="https://img.shields.io/badge/⬇_Download-APK_v1.2.0-2f8f1c?style=for-the-badge&labelColor=0b7fb8"></a>
 
 <img alt="Android 8.1+" src="https://img.shields.io/badge/Android-8.1%2B-3ddc84?style=flat-square&logo=android&logoColor=white">
 <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-Jetpack_Compose-7f52ff?style=flat-square&logo=kotlin&logoColor=white">
 <img alt="Offline" src="https://img.shields.io/badge/works-offline-0a548f?style=flat-square">
-<img alt="Lessons" src="https://img.shields.io/badge/lessons-97-ff8a1f?style=flat-square">
-<img alt="Tests" src="https://img.shields.io/badge/unit_tests-32_passing-25985a?style=flat-square">
+<img alt="Lessons" src="https://img.shields.io/badge/lessons-125-ff8a1f?style=flat-square">
+<img alt="Tests" src="https://img.shields.io/badge/unit_tests-44_passing-25985a?style=flat-square">
+<img alt="Mini games" src="https://img.shields.io/badge/mini_games-5-ef5b9c?style=flat-square">
 
-Beatpath is an Android app that teaches music theory and melody writing in short lessons, from your first beat to an 8-bar hook with harmony. You work in a Channel Rack and Piano roll modeled on FL Studio, and a character called Lou walks you through each step.
+Beatpath is an Android app that teaches music from the very first note: what a note is, how to find it, how chords and melodies work, and then how to make beats and songs in a Channel Rack and Piano roll modeled on FL Studio. A character called Lou walks you through every step, and everything is written so an 8-year-old can follow it.
 
 </div>
 
@@ -27,7 +28,7 @@ Beatpath is an Android app that teaches music theory and melody writing in short
 
 Lou is a small creature with a speaker for a belly, and he runs every lesson. Each step asks you to do one thing:
 
-1. A card gives the lesson's idea in one sentence. Tap *Words & tips* for definitions and an FL Studio tip.
+1. A card gives the lesson's idea in one sentence. Tap *Words & tips* for the music words in it.
 2. You tap steps in the Channel Rack or draw notes in the Piano roll.
 3. *Check* tells you exactly what's off, for example *"Note 3 should be higher than E5"*.
 4. If you're stuck, *Hint* gives a clue first, then gold outlines where the notes go, then the idea again in other words. *↩ Back to the task* brings the instructions back.
@@ -38,7 +39,7 @@ Music words in Lou's speech bubble turn into chips such as *? chord* and *? octa
 </tr>
 </table>
 
-Lou in the app is drawn from the same artwork as the banner ([docs/lou.svg](docs/lou.svg)). He has nine moods. He breathes, blinks, looks around and sways his hands and feet, and his speaker pumps on the beat.
+Lou in the app is drawn from the same artwork as the banner ([docs/lou.svg](docs/lou.svg)). He has ten moods. He breathes, blinks, looks around and sways his hands and feet, his speaker pumps on the beat, and if you try to leave a lesson he gets sad and sheds a tear.
 
 ## Screenshots
 
@@ -66,12 +67,21 @@ Lou in the app is drawn from the same artwork as the banner ([docs/lou.svg](docs
 | Notes and keys | 2, 11 | reading the Piano roll, C, G, F and D major, transposing a melody |
 | Harmony | 4, 9, 14, 15 | triads, I-V-vi-IV, minor keys and modes, secondary dominants, borrowed chords |
 | Melody | 7, 8, 12, 13, 16 | motifs, contour, harmony lines, syncopation, triplets, developing a melody |
-| Bass | 6 | roots, octaves, 808 basics that lock to the kick |
+| Bass | 6, 21 | roots, octaves, 808 basics that lock to the kick, walking up, octave bass |
 | Songwriting | 10, 17, 18 | phrases, verse and chorus, harmonizing a tune, writing an 8-bar hook |
+| Voicings | 19 | inversions, open chords, keeping the shared note, smooth chord changes |
+| Genres | 20 | lo-fi, house, trap, pop and drum and bass grooves, each with its own kit and tempo |
+| Melody III | 22 | call and response, countermelodies, one high point, ending at home |
 
-There are 97 lessons. The course opens with 16 Music basics lessons, then 5 ear-training lessons, then 76 Studio lessons in 18 levels. Each level ends with a jam, and each Studio lesson ends with a tip you can try in FL Studio on a computer.
+There are 125 lessons:
+- 16 Music basics lessons
+- 5 ear-training lessons
+- 98 Studio lessons in 22 levels
+- 6 Ear training II lessons, after level 10
 
-## Music basics (new in 1.1)
+Each level ends with a jam. Every lesson was reviewed so it only uses ideas taught before it, explains each new word the first time, and stays short.
+
+## Music basics
 
 Before any FL screen, 16 short lessons teach the theory on a tappable keyboard where every note has a rainbow color (C red, D orange, E yellow, F green, G blue, A indigo, B violet).
 
@@ -80,17 +90,41 @@ Before any FL screen, 16 short lessons teach the theory on a tappable keyboard w
 
 The same colors carry into the Studio Piano roll (🌈 in its toolbar). The sources behind the theory are in [research/basics-research.md](research/basics-research.md).
 
-## XP and Lou's Shop (new in 1.1)
+## Mini games (new in 1.2)
 
-Every lesson earns XP. Your level and title (Beginner, Beat maker, Melody maker, up to Hitmaker) come from all the XP you've ever earned, and the XP you haven't spent goes into Lou's Shop:
+The Studio tab is now for playing and making music. The lessons stay on the Learn path. Lou stars in five games, and each one trains a real skill:
 
-- hats for Lou: party hat, beanie, studio headphones, crown
-- glasses: shades, heart glasses
-- Lou colors: coral, grape, sunny, midnight, and a rainbow Lou that cycles through the note colors
-- sky themes for the menu: sunset and starry dusk
-- a mystery box that gives a random item you don't own yet
+| Game | What you do | What it teaches |
+|---|---|---|
+| Sky Hop | Lou plays two notes, and you choose the cloud the second note went to. Later rounds use small steps and big leaps. | hearing up, down and the same |
+| Beat Run | Lou runs to a drum, and you tap to jump as each block reaches him, right on the beat. Later rounds add the "and" between beats and speed up. | keeping a steady beat |
+| Balloon Pop | Note balloons float up, and you pop each one by tapping its key. The key letters, then the colors, fade away as you improve, and sharps join in. | note names on the keyboard |
+| Chord Cake | Chef Lou takes chord orders. Tap three keys to stack the cake, bottom note first. | building major and minor chords |
+| Echo Lou | Lou hops across five rainbow pads singing a tune that grows, and you repeat it. | remembering melodies |
 
-Lou wears what you pick everywhere in the app. Open the shop from the XP coin on the Learn path, the Me tab, or the Lesson complete screen.
+Games give 1 to 3 stars, keep your best score and earn XP.
+
+## Song maker (new in 1.2)
+
+Make loops A, B and C, then tap bars in the song row to arrange them. Switch Play to *Whole song* and export the full song as MIDI or WAV.
+
+## XP, quests and Lou's Shop
+
+Lessons, practice and mini games earn XP.
+
+- Quests: every day brings three, for example "Play 2 mini games" or "Finish a lesson". Each one pays a reward when you claim it.
+- Streak chests: keep practicing 3, 7, 14 and 30 days in a row to open a bonus chest.
+- Levels: your level and title (Beginner, Beat maker, Melody maker, up to Hitmaker) come from all the XP you've ever earned. Spending never lowers them.
+
+Unspent XP goes to Lou's Shop. Lou stands on a clay stage there, and you tap any item to try it on before you buy it. Items have rarities from common to legendary:
+
+- Hats: party hat, cool cap, beanie, chef hat, studio headphones, flower crown, wizard hat, crown
+- Glasses: fancy mustache, shades, star glasses, heart glasses, monocle
+- Extras: bow tie, scarf, gold chain
+- Colors: coral, mint, grape, bubblegum, sunny, midnight, and a rainbow Lou that cycles through the note colors
+- Mystery box: a random item you don't own yet
+
+Lou wears what you pick everywhere in the app.
 
 ## Practice (new in 1.0)
 
@@ -100,23 +134,25 @@ The Practice tab generates its exercises, so it keeps going after the last lesso
 - Review: lessons you needed help with come back after 1, 3 and 7 days, until you pass them on your own.
 - Drills: high or low, pitch or volume, up or down, step or leap, major or minor, which chord, and melody dictation, where you hear four notes and write them in the Piano roll.
 
-When you finish all 97 lessons, the Learn path offers Practice, a blank 4-bar song, or a redo of the lessons you passed with help.
+When you finish all 125 lessons, the Learn path offers Practice, a blank 4-bar song, or a redo of the lessons you passed with help.
 
 ## The app
 
-- The look is Frutiger Aero with clay buttons: a sky-blue ripple background with floating bubbles, frosted-glass panels, and soft clay buttons that squish when you press them. Finished lessons on the path show a green clay tick, playable ones an orange clay star.
+- Everything is soft clay on a sky-blue background with floating bubbles. Clay cards, buttons, chips and switches all squish onto a darker base when you press them, with soft lighting and a fine grain. The FL-style windows (Channel Rack, Piano roll, transport, tools) keep FL's own flat look. On the path, finished lessons show a green clay tick and playable ones an orange clay star.
+- Nothing on screen jumps after you press Check. The result tray slides in and out smoothly, and the right answer lights up after a miss.
+- Music stops for phone calls, other apps and unplugged headphones. *Calm motion* in the Me tab turns the floating bubbles off and keeps Lou still.
 - The Studio uses FL Studio's names and shortcuts: Channel Rack (F6), Piano roll (F7), Draw (P), Paint (B), Delete (D), Select (E), snap, velocity and swing. The graphics are drawn from scratch; none come from Image-Line.
 - The phone synthesizes every sound: 4 drum kits (Classic, 808, House, Lo-fi) and 19 instrument presets, among them bell, flute, e-piano, strings, sub bass and wobble bass.
-- You can export a loop as MIDI and open it in FL Studio (*Piano roll → File → Import MIDI file*), or as a WAV file to share.
+- You can export a loop or a whole song as MIDI and open it in FL Studio (*Piano roll → File → Import MIDI file*), or as a WAV file to share.
 - Every screen has a portrait and a landscape layout, and the controls have TalkBack labels.
 
 ## Install
 
-1. Download `Beatpath-1.1.0.apk` from [Releases](../../releases/latest).
+1. Download `Beatpath-1.2.0.apk` from [Releases](../../releases/latest).
 2. Open it on an Android phone running 8.1 or newer. Your browser or Files app may ask for permission to install unknown apps.
 3. Tap *Start from zero*, or *I already make beats* to unlock every lesson.
 
-The app needs no account or network connection and has no ads. Your progress and loops stay on the phone.
+The app needs no account or network connection and has no ads. Your progress and loops stay on the phone. See [PRIVACY.md](PRIVACY.md).
 
 ## Build from source
 
@@ -128,7 +164,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
 To open a screen directly while developing, pass its route:
-`adb shell am start -S -n com.beatpath.app/.MainActivity --es route roll.four-chord-loop`. Routes include any lesson id, `practice`, `practice.mix`, `home` and `studio`.
+`adb shell am start -S -n com.beatpath.app/.MainActivity --es route roll.four-chord-loop`. Routes include any lesson id, any game id (`game.skyhop`, `game.beatrun`, `game.balloons`, `game.chordcake`, `game.echo`), `games`, `shop`, `practice`, `practice.mix`, `home` and `studio`.
 
 <details>
 <summary>How it's built</summary>
@@ -137,14 +173,14 @@ To open a screen directly while developing, pass its route:
 - The audio engine plays through a low-latency `AudioTrack`. It has an event scheduler (sixteenths, triplets, swing), a polyBLEP subtractive synth with a Cytomic SVF filter, synthesized drums, a Freeverb-style reverb, and offline rendering for WAV export.
 - Each lesson step is data: Lou's line, one task, ghost outlines, a hint ladder and a `check(project) → Verdict` function.
 - Practice items, dictation lessons and the review schedule are generated in plain Kotlin.
-- 32 unit tests cover every lesson's setup and checks, every Music basics answer and its theory, MIDI export, the sound presets, the practice generators and the review schedule.
-- Scripts in `android/tools/ui-check/` open every lesson in both orientations and check tap targets.
+- 44 unit tests cover every lesson's setup and checks (right answers pass, wrong and empty ones fail), every Music basics and Ear training II answer and its theory, the new packs' wording rules, the shop and level math, MIDI export, the sound presets, the practice generators and the review schedule.
+- Scripts in `android/tools/ui-check/` open every lesson in both orientations. `walk.py` plays each lesson like a child: it asks for a hint, answers wrong, retries, then tries to leave and checks that sad Lou asks first and that it lands back on the path.
 
 </details>
 
 ## Roadmap
 
-Next: measure audio latency on real phones and pause for calls (audio focus). After that come content packs (chord voicings, Ear training II, genre grooves), a Song mode, and a Play Store release. [BUILD-PLAN.md](BUILD-PLAN.md) has the details, including how to add your own lessons.
+Done in 1.2: mini games, the song maker, quests and streak chests, the bigger shop, four content packs, Ear training II, audio focus and the clay look. Next: measure audio latency on real phones, then the Play Store release (it needs the owner's signing key and developer account). The store text is drafted in [docs/play-store-listing.md](docs/play-store-listing.md). [BUILD-PLAN.md](BUILD-PLAN.md) has the details, including how to add your own lessons.
 
 <div align="center">
 <sub>Beatpath is an independent learning project. FL Studio is a trademark of Image-Line. Beatpath is not affiliated with or endorsed by Image-Line, and all of its UI is original.</sub>

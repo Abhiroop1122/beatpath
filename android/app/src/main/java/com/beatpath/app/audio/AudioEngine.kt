@@ -1,5 +1,8 @@
 package com.beatpath.app.audio
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTimestamp
@@ -63,6 +66,9 @@ class AudioEngine {
     @Volatile var sfxEnabled: Boolean = true
     /** Set while an ear-training prompt plays: no SFX may mask it (plan §4.3). */
     @Volatile var quietSfx: Boolean = false
+    /** Goes up each time playback is stopped from outside (a call, another app, headphones unplugged), so screens can show Stop. */
+    var interruptions by androidx.compose.runtime.mutableIntStateOf(0)
+    fun interrupt() { stop(); interruptions++ }
     /** Mixer + plugin settings; swap the whole object to change anything (render thread picks it up). */
     @Volatile var mix: Mix = Mix()
 

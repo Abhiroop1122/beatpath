@@ -32,6 +32,7 @@ class LouState(private val sfx: Sfx) {
             LouMood.Think, LouMood.Encourage -> sfx.louHmm()
             LouMood.Surprised -> sfx.louSurprised()
             LouMood.Sleepy -> sfx.louYawn()
+            LouMood.Sad -> sfx.louSad()
             else -> {}
         }
     }

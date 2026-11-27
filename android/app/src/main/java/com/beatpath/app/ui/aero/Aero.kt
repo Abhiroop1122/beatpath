@@ -117,9 +117,13 @@ private val bubbleSet = listOf(
     Bubble(0.52f, 0.28f, 0.030f, 2, 3, 0.65f), Bubble(0.04f, 0.78f, 0.035f, 2, 1, 0.90f), Bubble(0.74f, 0.95f, 0.060f, 1, 2, 0.25f),
 )
 
+/** App-wide motion setting (Me → Calm motion). */
+object Motion { var reduce by androidx.compose.runtime.mutableStateOf(false) }
+
 /** Glassy bubbles that drift slowly upward with a gentle sway, looping forever (one rise takes 30–60 s). */
 @Composable
 fun FloatingBubbles(modifier: Modifier = Modifier) {
+    if (Motion.reduce) return
     val t by androidx.compose.animation.core.rememberInfiniteTransition(label = "bubbles").animateFloat(0f, 1f,
         androidx.compose.animation.core.infiniteRepeatable<Float>(androidx.compose.animation.core.tween(60_000, easing = androidx.compose.animation.core.LinearEasing)), label = "t")
     Canvas(modifier.fillMaxSize()) {
@@ -171,7 +175,6 @@ fun AeroBackground(modifier: Modifier = Modifier, photo: Boolean = false, conten
         Box(modifier.fillMaxSize()) {
             androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(com.beatpath.app.R.drawable.menu_sky), null, Modifier.fillMaxSize(),
                 contentScale = androidx.compose.ui.layout.ContentScale.Crop, alignment = androidx.compose.ui.BiasAlignment(0.45f, 0f))
-            SkyTint(com.beatpath.app.ui.lou.LouLook.sky)
             // soft white veil at the top keeps headings crisp
             Box(Modifier.fillMaxSize().drawBehind { drawRect(Brush.verticalGradient(0f to Color(0x40FFFFFF), 0.35f to Color(0x00FFFFFF))) })
             FloatingBubbles()
@@ -190,22 +193,9 @@ fun AeroBackground(modifier: Modifier = Modifier, photo: Boolean = false, conten
     }
 }
 
-/** Frosted glass card: translucent white, bright top edge, soft outer shadow. */
-fun Modifier.glass(corner: Dp = 22.dp, tint: Color = Aero.Glass): Modifier = composed {
-    val frosted = LocalFrost.current != null
-    this.drawBehind {
-            val r = CornerRadius(corner.toPx())
-            drawRoundRect(Color(0x1A083A5A), Offset(0f, 3.dp.toPx()), size, r)   // soft, minimal shadow
-        }
-        .clip(RoundedCornerShape(corner))
-        .frost()
-        .drawBehind {
-            // frosted: a milky veil over the blurred backdrop; off the menu, the plain translucent fill
-            drawRect(if (frosted) Color(0x9EFFFFFF) else tint)
-            drawRect(Brush.verticalGradient(listOf(Color(0x47FFFFFF), Color(0x00FFFFFF)), 0f, size.height * 0.4f))
-            drawRoundRect(Color(0xB3FFFFFF), cornerRadius = CornerRadius(corner.toPx()), style = Stroke(1.dp.toPx()))
-        }
-}
+/** Panels are soft clay cards now (the name is kept so every screen picked up the new look at once). */
+@Suppress("UNUSED_PARAMETER")
+fun Modifier.glass(corner: Dp = 22.dp, tint: Color = Aero.Glass): Modifier = this.clayCard(corner)
 
 /** Clay colors: [top] the lit face, [bottom] the body, [edge] the darker base the button sits on, [text] the label. */
 enum class Gel(val top: Color, val bottom: Color, val edge: Color, val text: Color) {
@@ -214,6 +204,15 @@ enum class Gel(val top: Color, val bottom: Color, val edge: Color, val text: Col
     Orange(Color(0xFFFFAA55), Color(0xFFF2852B), Color(0xFFC25F12), Color.White),
     Silver(Color(0xFFFFFFFF), Color(0xFFF1F5F8), Color(0xFFC6D3DC), Color(0xFF0C2B40)),
     Off(Color(0xFFE8ECEF), Color(0xFFDCE2E6), Color(0xFFB9C3CA), Color(0xFF7C8A94)),
+    /** Cards and bubbles: warm white clay. */
+    Cream(Color(0xFFFFFFFF), Color(0xFFF3F8FB), Color(0xFFD5E1E9), Color(0xFF0E2A3F)),
+    /** Studio controls: dark clay, like FL's panels. */
+    Slate(Color(0xFF5B6B77), Color(0xFF424F59), Color(0xFF232C33), Color(0xFFE9EEF1)),
+    /** Studio "on" state: FL's lime, in clay. */
+    Lime(Color(0xFFD2F38B), Color(0xFFA9E34B), Color(0xFF6E9A22), Color(0xFF1F2E08)),
+    Pink(Color(0xFFFF9EC4), Color(0xFFEF5B9C), Color(0xFFB83A72), Color.White),
+    Purple(Color(0xFFB79CF2), Color(0xFF8A63D8), Color(0xFF5F3FA8), Color.White),
+    Gold(Color(0xFFFFE08A), Color(0xFFF4B731), Color(0xFFB8820F), Color(0xFF4A3200)),
 }
 
 /** A fine, fixed grain that makes flat color read as soft clay. Built once. */
@@ -222,23 +221,7 @@ private val clayGrain: androidx.compose.ui.graphics.ImageBitmap by lazy {
     val px = IntArray(n * n) { val v = rnd.nextInt(256); val a = 10 + rnd.nextInt(16); (a shl 24) or (v shl 16) or (v shl 8) or v }
     android.graphics.Bitmap.createBitmap(px, n, n, android.graphics.Bitmap.Config.ARGB_8888).asImageBitmap()
 }
-private val grainBrush by lazy { androidx.compose.ui.graphics.ShaderBrush(androidx.compose.ui.graphics.ImageShader(clayGrain, androidx.compose.ui.graphics.TileMode.Repeated, androidx.compose.ui.graphics.TileMode.Repeated)) }
-
-/** Paints a clay slab: soft shadow, darker base, matte body lifted by [lift] px, a soft highlight and grain. */
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.clay(g: Gel, lift: Float, round: Float, pressed: Boolean) {
-    val base = 4.dp.toPx()
-    val r = CornerRadius(round)
-    val body = Size(size.width, size.height - base)
-    drawRoundRect(Color(0x22083A5A), Offset(0f, base + 2.dp.toPx()), Size(size.width, size.height - base), r)      // contact shadow
-    drawRoundRect(g.edge, Offset(0f, base), body, r)                                                                  // base
-    val top = base - lift
-    drawRoundRect(Brush.verticalGradient(listOf(g.top, g.bottom), top, top + body.height), Offset(0f, top), body, r)  // body
-    drawRoundRect(Brush.verticalGradient(listOf(Color(0x00000000), Color(0x1A000000)), top + body.height * 0.55f, top + body.height), Offset(0f, top), body, r)
-    drawRoundRect(grainBrush, Offset(0f, top), body, r)
-    // soft, wide highlight up top: clay is matte, so no hard gloss band
-    drawRoundRect(Brush.verticalGradient(listOf(Color(if (pressed) 0x33FFFFFF else 0x55FFFFFF), Color(0x00FFFFFF)), top, top + body.height * 0.5f),
-        Offset(body.height * 0.18f, top + body.height * 0.08f), Size(size.width - body.height * 0.36f, body.height * 0.42f), CornerRadius(round))
-}
+internal val clayGrainBrush by lazy { androidx.compose.ui.graphics.ShaderBrush(androidx.compose.ui.graphics.ImageShader(clayGrain, androidx.compose.ui.graphics.TileMode.Repeated, androidx.compose.ui.graphics.TileMode.Repeated)) }
 
 /** Clay button: sits on its own darker base and squishes down onto it when pressed. */
 @Composable
@@ -250,7 +233,7 @@ fun GelButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, 
     Box(
         modifier.height(height + 4.dp)
             .graphicsLayer { scaleX = 1f - press * 0.025f; scaleY = 1f - press * 0.04f; transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f) }
-            .drawBehind { clay(g, lift = (1f - press) * 4.dp.toPx() * (if (enabled) 1f else 0.5f), round = (size.height - 4.dp.toPx()) / 2, pressed = pressed) }
+            .claySurface(g, height / 2, depth = 4.dp, press = if (enabled) press else 0.5f)
             .clip(RoundedCornerShape(50))
             .clickable(src, null, enabled = enabled, role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
@@ -272,7 +255,7 @@ fun GelOrb(modifier: Modifier, gel: Gel, content: @Composable BoxScope.() -> Uni
         drawCircle(Color(0x2A083A5A), r, c + Offset(0f, 4.dp.toPx()))
         drawCircle(gel.edge, r, c + Offset(0f, 2.dp.toPx()))
         drawCircle(Brush.radialGradient(listOf(gel.top, gel.bottom), c - Offset(r * 0.3f, r * 0.4f), r * 1.5f), r * 0.97f, c)
-        drawCircle(grainBrush, r * 0.97f, c)
+        drawCircle(clayGrainBrush, r * 0.97f, c)
         drawOval(Brush.verticalGradient(listOf(Color(0x66FFFFFF), Color(0x00FFFFFF)), c.y - r, c.y), Offset(c.x - r * 0.6f, c.y - r * 0.86f), Size(r * 1.2f, r * 0.75f))
     }, contentAlignment = Alignment.Center, content = content)
 }

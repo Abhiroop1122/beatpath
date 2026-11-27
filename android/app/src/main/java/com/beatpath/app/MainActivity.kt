@@ -26,7 +26,11 @@ import com.beatpath.app.ui.home.LearnPath
 import com.beatpath.app.ui.home.LoopsScreen
 import com.beatpath.app.ui.home.MeScreen
 import com.beatpath.app.ui.home.PracticeScreen
-import com.beatpath.app.ui.home.StudioHub
+import com.beatpath.app.ui.games.SkyHop
+import com.beatpath.app.ui.games.BeatRun
+import com.beatpath.app.ui.games.BalloonPop
+import com.beatpath.app.ui.games.ChordCake
+import com.beatpath.app.ui.games.EchoLou
 import com.beatpath.app.ui.home.Tab
 import com.beatpath.app.ui.home.WelcomeScreen
 import com.beatpath.app.ui.lesson.EarLessonScreen
@@ -42,6 +46,7 @@ sealed interface Route {
     /** [from] is the tab you came from, so leaving always lands you back where you were. */
     data class Ear(val id: String, val from: Tab = Tab.Learn, val run: Long = System.nanoTime()) : Route
     data class Shop(val from: Tab = Tab.Learn) : Route
+    data class Game(val id: String, val from: Tab = Tab.Studio, val run: Long = System.nanoTime()) : Route
     data class Basics(val id: String, val from: Tab = Tab.Learn, val run: Long = System.nanoTime()) : Route
     data class Studio(val project: Project, val lessonId: String? = null, val from: Tab = Tab.Learn, val run: Long = System.nanoTime()) : Route
     data class Complete(val lessonId: String, val xp: Int, val unassisted: Boolean, val seconds: Int, val from: Tab = Tab.Learn) : Route
@@ -53,6 +58,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        com.beatpath.app.data.CrashLog.install(applicationContext)
         enableEdgeToEdge()
         val store = Store(applicationContext)
         com.beatpath.app.lessons.Practice.accuracy = { store.accuracy(it.id) }
@@ -62,10 +68,11 @@ class MainActivity : ComponentActivity() {
         engine.sfxEnabled = store.sfxOn
         fun applyLook() {
             val eq = store.equipped
-            com.beatpath.app.ui.lou.LouLook.outfit = com.beatpath.app.ui.lou.LouOutfit(eq[com.beatpath.app.data.Shop.Slot.HAT], eq[com.beatpath.app.data.Shop.Slot.FACE], eq[com.beatpath.app.data.Shop.Slot.SKIN])
-            com.beatpath.app.ui.lou.LouLook.sky = eq[com.beatpath.app.data.Shop.Slot.SKY]
+            com.beatpath.app.ui.lou.LouLook.outfit = com.beatpath.app.ui.lou.LouOutfit(eq[com.beatpath.app.data.Shop.Slot.HAT], eq[com.beatpath.app.data.Shop.Slot.FACE],
+                eq[com.beatpath.app.data.Shop.Slot.SKIN], eq[com.beatpath.app.data.Shop.Slot.NECK])
         }
         applyLook(); store.onLookChange = { applyLook() }
+        com.beatpath.app.ui.aero.Motion.reduce = store.reduceMotion
         com.beatpath.app.model.NoteColors.rainbowRoll = store.rainbowRoll
         com.beatpath.app.model.NoteColors.onRainbowChange = { store.changeRainbow(it) }
         val gallery = intent?.getBooleanExtra("lou_gallery", false) == true
@@ -80,6 +87,8 @@ class MainActivity : ComponentActivity() {
                         startRoute != null && Basics.byId(startRoute) != null -> Route.Basics(startRoute)
                         startRoute == "practice" -> Route.Home(Tab.Practice)
                         startRoute == "shop" -> Route.Shop()
+                        startRoute != null && com.beatpath.app.ui.games.Games.byId(startRoute) != null -> Route.Game(startRoute)
+                        startRoute == "games" -> Route.Home(Tab.Studio)
                         startRoute == "home" -> Route.Home(Tab.Learn)
                         startRoute == "welcome" -> Route.Welcome
                         startRoute == "complete" -> Route.Complete("debug", 15, true, 74)
@@ -112,7 +121,9 @@ class MainActivity : ComponentActivity() {
                                     onShop = { route = Route.Shop(Tab.Learn) },
                                     onSong = { route = Route.Studio(Project(System.currentTimeMillis(), "My song", pattern = com.beatpath.app.model.Pattern(4)), from = Tab.Learn) }) { start(it, Tab.Learn) }
                                 Tab.Practice -> PracticeScreen(store, sfx) { start(it, Tab.Practice) }
-                                Tab.Studio -> StudioHub(store, sfx, onFree = { route = Route.Studio(Project(System.currentTimeMillis(), "Untitled loop"), from = Tab.Studio) }, onStart = { start(it, Tab.Studio) })
+                                Tab.Studio -> com.beatpath.app.ui.games.StudioHub(store, sfx, onFree = { route = Route.Studio(Project(System.currentTimeMillis(), "Untitled loop"), from = Tab.Studio) },
+                                    onSong = { route = Route.Studio(Project(System.currentTimeMillis(), "My song", songMode = true), from = Tab.Studio) },
+                                    onGame = { route = Route.Game(it, Tab.Studio) })
                                 Tab.Loops -> LoopsScreen(store, engine, sfx, onOpen = { route = Route.Studio(it, from = Tab.Loops) }, onNew = { route = Route.Studio(Project(System.currentTimeMillis(), "Untitled loop"), from = Tab.Loops) })
                                 Tab.Me -> MeScreen(store, engine) { route = Route.Shop(Tab.Me) }
                             }
@@ -142,6 +153,20 @@ class MainActivity : ComponentActivity() {
                         is Route.Complete -> LessonCompleteScreen(sfx, r.xp, r.unassisted, r.seconds,
                             onContinue = { route = Route.Home(r.from) }, onAgain = { start(r.lessonId, r.from) },
                             balance = store.balance, onShop = { route = Route.Shop(r.from) })
+                        is Route.Game -> {
+                            val info = com.beatpath.app.ui.games.Games.byId(r.id)!!
+                            com.beatpath.app.ui.games.GameShell(info, store.best(r.id), sfx, onExit = { route = Route.Home(r.from) },
+                                onResult = { score, stars -> store.recordGame(r.id, score, stars) }) { control ->
+                                val G = com.beatpath.app.ui.games.Games
+                                when (r.id) {
+                                    G.skyHop.id -> SkyHop(control, engine, sfx)
+                                    G.beatRun.id -> BeatRun(control, engine, sfx)
+                                    G.balloonPop.id -> BalloonPop(control, engine, sfx)
+                                    G.chordCake.id -> ChordCake(control, engine, sfx)
+                                    else -> EchoLou(control, engine, sfx)
+                                }
+                            }
+                        }
                         is Route.Shop -> com.beatpath.app.ui.home.ShopScreen(store, sfx) { route = Route.Home(r.from) }
                     }
                 }
@@ -149,6 +174,25 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    override fun onResume() { super.onResume(); engine.start() }
-    override fun onPause() { engine.stop(); engine.release(); super.onPause() }
+    private val audioManager by lazy { getSystemService(android.media.AudioManager::class.java) }
+    /** Calls and other apps take the audio: stop the music so it never plays over them. */
+    private val focusRequest by lazy {
+        android.media.AudioFocusRequest.Builder(android.media.AudioManager.AUDIOFOCUS_GAIN)
+            .setAudioAttributes(android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_GAME).setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC).build())
+            .setOnAudioFocusChangeListener { change -> if (change < 0) runOnUiThread { engine.interrupt() } }
+            .build()
+    }
+    /** Headphones pulled out: stop at once instead of blasting the speaker. */
+    private val noisy = object : android.content.BroadcastReceiver() {
+        override fun onReceive(c: android.content.Context?, i: android.content.Intent?) { if (i?.action == android.media.AudioManager.ACTION_AUDIO_BECOMING_NOISY) engine.interrupt() }
+    }
+    override fun onResume() {
+        super.onResume(); engine.start()
+        runCatching { audioManager.requestAudioFocus(focusRequest) }
+        androidx.core.content.ContextCompat.registerReceiver(this, noisy, android.content.IntentFilter(android.media.AudioManager.ACTION_AUDIO_BECOMING_NOISY), androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED)
+    }
+    override fun onPause() {
+        runCatching { unregisterReceiver(noisy) }; runCatching { audioManager.abandonAudioFocusRequest(focusRequest) }
+        engine.interrupt(); engine.release(); super.onPause()
+    }
 }

@@ -9,6 +9,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.border
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -72,6 +74,7 @@ import com.beatpath.app.ui.aero.LouBubble
 import com.beatpath.app.ui.aero.ResultTray
 import com.beatpath.app.ui.aero.TrayMsg
 import com.beatpath.app.ui.aero.glass
+import com.beatpath.app.ui.aero.claySurface
 import com.beatpath.app.ui.aero.isLandscape
 import com.beatpath.app.ui.aero.sideSafe
 import com.beatpath.app.ui.lou.Lou
@@ -190,7 +193,7 @@ fun BasicsLessonScreen(lesson: Basics.BasicsLesson, engine: AudioEngine, sfx: Sf
     AeroBackground {
         Column(Modifier.fillMaxSize().sideSafe().statusBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = if (land) 4.dp else 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Rounded.Close, "Leave lesson", tint = AeroColors.Ink, modifier = Modifier.size(40.dp).clip(CircleShape).clickable { confirmExit = true }.padding(8.dp))
+                com.beatpath.app.ui.aero.ClayIconButton(Icons.Rounded.Close, "Leave lesson", { confirmExit = true }, size = 40.dp, iconSize = 20.dp)
                 Spacer(Modifier.width(8.dp))
                 if (land) Text(lesson.title, style = AeroType.H2.copy(color = AeroColors.Ink), modifier = Modifier.padding(end = 14.dp), maxLines = 1)
                 Box(Modifier.weight(1f).height(16.dp).semantics { contentDescription = "Page ${idx + 1} of $total" }.drawBehind {
@@ -206,10 +209,11 @@ fun BasicsLessonScreen(lesson: Basics.BasicsLesson, engine: AudioEngine, sfx: Sf
 
             // Lou and his bubble live outside the page animation, in a strip of fixed height: what he says never moves the keys
             val talkStrip: @Composable (Modifier) -> Unit = { m ->
-                Row(m.height(if (land) 92.dp else 100.dp), verticalAlignment = Alignment.Bottom) {
+                // tall enough for Lou's longest line (4 lines); anything longer scrolls inside the bubble instead of being cut off
+                Row(m.height(if (land) 104.dp else 124.dp), verticalAlignment = Alignment.Bottom) {
                     Lou(Modifier.size(if (land) 70.dp else 76.dp, if (land) 61.dp else 66.dp), mood = lou.mood, mouthOpen = lou.mouth)
                     Box(Modifier.weight(1f).fillMaxHeight().padding(start = 4.dp, bottom = 4.dp), contentAlignment = Alignment.BottomStart) {
-                        lou.bubble?.let { LouBubble(it, Modifier.heightIn(max = if (land) 88.dp else 96.dp)) }
+                        lou.bubble?.let { LouBubble(it, Modifier.heightIn(max = if (land) 100.dp else 120.dp).verticalScroll(rememberScrollState())) }
                     }
                 }
             }
@@ -303,10 +307,7 @@ fun BasicsLessonScreen(lesson: Basics.BasicsLesson, engine: AudioEngine, sfx: Sf
             }
         }
         ResultTray(tray, modifier = Modifier.align(Alignment.BottomCenter), onCta = { if (lastGood) next() else retry() })
-        if (confirmExit) AlertDialog(containerColor = Color(0xFFF3FAFF), onDismissRequest = { confirmExit = false },
-            confirmButton = { TextButton({ confirmExit = false; stopTune(); onExit() }) { Text("Leave") } },
-            dismissButton = { TextButton({ confirmExit = false }) { Text("Keep going") } },
-            title = { Text("Leave this lesson?", style = AeroType.H2) }, text = { Text("You can start it again from the path any time.", style = AeroType.Body) })
+        if (confirmExit) com.beatpath.app.ui.aero.LeaveDialog(sfx, onLeave = { confirmExit = false; stopTune(); onExit() }, onStay = { confirmExit = false })
     }
 }
 
@@ -317,7 +318,7 @@ private fun Options(options: List<String>, choice: Int?, result: Boolean?, answe
     val item: @Composable (Int, Modifier) -> Unit = { i, m ->
         val sel = choice == i
         val edge = when { sel && result == true -> AeroColors.Leaf; sel && result == false -> AeroColors.Amber; result == false && i == answer -> AeroColors.Leaf; sel -> AeroColors.Primary; else -> Color(0xCCFFFFFF) }
-        Box(m.heightIn(min = 52.dp).glass(18.dp).border(3.dp, edge, RoundedCornerShape(18.dp)).clip(RoundedCornerShape(18.dp)).clickable { onPick(i) }
+        Box(m.heightIn(min = 52.dp).claySurface(Gel.Cream, 18.dp, depth = 4.dp, outline = edge.takeIf { it != Color(0xCCFFFFFF) }).clip(RoundedCornerShape(18.dp)).clickable { onPick(i) }
             .semantics { contentDescription = "${options[i]}${if (sel) ", selected" else ""}" }.padding(horizontal = 10.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
             Text(options[i], style = AeroType.H2.copy(fontSize = 17.sp, color = if (sel) AeroColors.PrimaryDeep else AeroColors.Ink), textAlign = TextAlign.Center)
         }

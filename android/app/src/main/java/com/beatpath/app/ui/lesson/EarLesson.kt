@@ -71,6 +71,7 @@ import com.beatpath.app.ui.aero.LouBubble
 import com.beatpath.app.ui.aero.ResultTray
 import com.beatpath.app.ui.aero.TrayMsg
 import com.beatpath.app.ui.aero.glass
+import com.beatpath.app.ui.aero.claySurface
 import com.beatpath.app.ui.aero.isLandscape
 import com.beatpath.app.ui.aero.sideSafe
 import com.beatpath.app.ui.lou.Lou
@@ -89,15 +90,15 @@ data class EarSpec(val id: String, val kind: EarKind, val title: String, val int
 
 object EarLessons {
     fun spec(id: String) = if (id.startsWith("practice.")) com.beatpath.app.lessons.Practice.earSpec(id) else when (id) {
-        EarIds.SOFT_LOUD -> EarSpec(id, EarKind.SoftLoud, "Soft or loud?", "Sometimes a note is just louder. Listen for higher — not louder.",
+        EarIds.SOFT_LOUD -> EarSpec(id, EarKind.SoftLoud, "Soft or loud?", "Loud is not the same as high! Find the higher note. If both are the same note, tap Same note.",
             listOf(EarItem(64, 64, 0.35f, 0.95f), EarItem(60, 67, 0.95f, 0.35f), EarItem(62, 62, 0.95f, 0.4f), EarItem(65, 60, 0.4f, 0.95f)).shuffled())
-        EarIds.STEP_LEAP -> EarSpec(id, EarKind.StepLeap, "Step or leap?", "Melodies move by steps (the next note over) or leaps (a jump). Listen to the gap.",
+        EarIds.STEP_LEAP -> EarSpec(id, EarKind.StepLeap, "Step or leap?", "Tunes walk in small steps to the next note, or leap over notes like a frog. Listen to the gap.",
             listOf(EarItem(60, 62), EarItem(60, 67), EarItem(64, 65), EarItem(62, 69), EarItem(67, 65), EarItem(72, 64)).shuffled())
-        EarIds.MAJOR_MINOR -> EarSpec(id, EarKind.ChordQuality, "Major or minor?", "Major chords sound bright and happy. Minor chords sound darker. Trust your feeling.",
+        EarIds.MAJOR_MINOR -> EarSpec(id, EarKind.ChordQuality, "Major or minor?", "Major chords sound bright, like sunshine. Minor chords sound darker, like a rainy day. Trust your feeling.",
             listOf(EarItem(60, 0), EarItem(57, 1), EarItem(65, 0), EarItem(62, 1), EarItem(67, 0), EarItem(64, 1)).shuffled())
-        EarIds.CONTOUR -> EarSpec(id, EarKind.Contour, "Up, down or the same?", "Listen to where the second note goes.",
+        EarIds.CONTOUR -> EarSpec(id, EarKind.Contour, "Up, down or the same?", "Two notes. Does the second one climb up, walk down, or stay in the same place?",
             listOf(EarItem(60, 67), EarItem(69, 62), EarItem(64, 64), EarItem(62, 65), EarItem(67, 65)).shuffled())
-        else -> EarSpec(EarIds.HIGH_LOW, EarKind.HigherPad, "High or low?", "I can sing really high… and really low. Let's train your ears.",
+        else -> EarSpec(EarIds.HIGH_LOW, EarKind.HigherPad, "High or low?", "I can sing really high, like a bird… and really low, like a bear. Let's train your ears!",
             listOf(EarItem(48, 72), EarItem(67, 55), EarItem(60, 67, 0.95f, 0.45f), EarItem(64, 60)))
     }
 }
@@ -194,7 +195,7 @@ fun EarLessonScreen(spec: EarSpec, engine: AudioEngine, sfx: Sfx, onExit: () -> 
     AeroBackground {
         Column(Modifier.fillMaxSize().sideSafe().statusBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = if (land) 4.dp else 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Rounded.Close, "Leave lesson", tint = AeroColors.Ink, modifier = Modifier.size(40.dp).clip(CircleShape).clickable { confirmExit = true }.padding(8.dp))
+                com.beatpath.app.ui.aero.ClayIconButton(Icons.Rounded.Close, "Leave lesson", { confirmExit = true }, size = 40.dp, iconSize = 20.dp)
                 Spacer(Modifier.width(8.dp))
                 if (land) Text(spec.title, style = AeroType.H2.copy(color = Color.White), modifier = Modifier.padding(end = 14.dp))
                 // glossy progress tube
@@ -300,38 +301,38 @@ fun EarLessonScreen(spec: EarSpec, engine: AudioEngine, sfx: Sfx, onExit: () -> 
                             val ik = kindOf(item)
                             val body = when {
                                 ik == EarKind.ChordSpot -> when (r) {
-                                    Ans.IV -> if (ok) "F — chord IV. Open and hopeful; it lifts away from home." else "That was F (IV): open, lifting away from home. Hear it again."
-                                    Ans.V -> if (ok) "G — chord V. Hear how it wants to go back to C?" else "That was G (V): tense, it wants to resolve to C. Hear it again."
-                                    else -> if (ok) "A minor — chord vi. Same notes as C, but sadder." else "That was A minor (vi): C's sad twin. Hear it again."
+                                    Ans.IV -> if (ok) "F, chord IV. It sounds open and hopeful, like stepping outside." else "That was F, chord IV. It sounds open, like stepping outside. Hear it again."
+                                    Ans.V -> if (ok) "G, chord V. Hear how it wants to go back home to C?" else "That was G, chord V. It sounds like it wants to go home to C. Hear it again."
+                                    else -> if (ok) "A minor, chord vi. It sounds like C's sad twin." else "That was A minor, chord vi: C's sad twin. Hear it again."
                                 }
-                                ik == EarKind.Contour -> if (ok) "Yes — the second note went ${r.name.lowercase()}." else "It went ${r.name.lowercase()}. Hear them slowly."
-                                ik == EarKind.StepLeap -> if (r == Ans.Step) (if (ok) "A step — the next note over. Smooth, singable." else "That was a step: the very next note. Listen again.") else (if (ok) "A leap! Jumps add excitement." else "That was a leap — a jump over other notes. Hear it slowly.")
-                                ik == EarKind.ChordQuality -> if (r == Ans.Major) (if (ok) "Major — bright. The middle note sits high." else "That was major: bright and open. Listen again.") else (if (ok) "Minor — darker. The middle note drops a semitone." else "That was minor: a little sad. Hear it slowly.")
-                                r == Ans.Same -> if (ok) "Same pitch — just louder. Loudness isn't pitch." else "They were the same note, one louder. Listen again."
-                                else -> if (ok) "Pad ${r.name} was higher." else "Pad ${r.name} is higher. Hear them side by side, slowly."
+                                ik == EarKind.Contour -> if (r == Ans.Same) (if (ok) "Yes! It stayed on the same note." else "It stayed on the same note. Listen again, slowly.") else (if (ok) "Yes! The second note went ${r.name.lowercase()}." else "The second note went ${r.name.lowercase()}. Listen again, slowly.")
+                                ik == EarKind.StepLeap -> if (r == Ans.Step) (if (ok) "A step, to the very next note. Smooth and easy to sing." else "That was a step, to the very next note. Listen again.") else (if (ok) "A leap! Jumps make a tune exciting." else "That was a leap, a jump over other notes. Listen again, slowly.")
+                                ik == EarKind.ChordQuality -> if (r == Ans.Major) (if (ok) "Major! Bright, like sunshine." else "That was major: bright and happy. Listen again.") else (if (ok) "Minor! Darker, like a rainy day. Its middle note is one key lower." else "That was minor: a little sad. Listen again, slowly.")
+                                r == Ans.Same -> if (ok) "Same note, just louder. Loud is not the same as high!" else "They were the same note. One was just louder. Listen again."
+                                ik == EarKind.SoftLoud -> if (ok) "Yes! Pad ${r.name} was higher. Loud does not mean high." else "Pad ${r.name} was higher. Loud does not mean high. Listen again, slowly."
+                                else -> if (ok) "Yes! Pad ${r.name} was higher, like a bird up in a tree." else "Pad ${r.name} is higher. Listen to them again, slowly."
                             }
                             lou.say(body, if (ok) LouMood.Happy else LouMood.Encourage)
-                            tray = TrayMsg(ok, if (ok) listOf("Nice ears!", "Spot on!", "You heard it!").random() else "Close — listen once more", body, if (ok) "Continue" else "Hear the difference")
+                            tray = TrayMsg(ok, if (ok) listOf("Nice ears!", "Spot on!", "You heard it!").random() else "Close! Listen once more", body, if (ok) "Continue" else "Hear the difference")
                         }
                     }, Modifier.align(Alignment.CenterEnd).fillMaxWidth(if (land) 0.53f else 1f), gel = if (enabled) Gel.Grass else Gel.Off, enabled = enabled && tray == null, height = if (land) 42.dp else 46.dp)
                 }
             }
         }
         ResultTray(tray, modifier = Modifier.align(Alignment.BottomCenter), onCta = { trayCta() })
-        if (confirmExit) AlertDialog(containerColor = Color(0xFFF3FAFF), onDismissRequest = { confirmExit = false },
-            confirmButton = { TextButton({ confirmExit = false; onExit() }) { Text("Leave") } },
-            dismissButton = { TextButton({ confirmExit = false }) { Text("Keep going") } },
-            title = { Text("Leave this lesson?", style = AeroType.H2) }, text = { Text("You can start it again from the path any time.", style = AeroType.Body) })
+        if (confirmExit) com.beatpath.app.ui.aero.LeaveDialog(sfx, onLeave = { confirmExit = false; onExit() }, onStay = { confirmExit = false })
     }
 }
 
 @Composable
 private fun Pad(label: String, selected: Boolean, result: Boolean?, playing: Boolean, modifier: Modifier, small: Boolean = false, correct: Boolean = false, onClick: () -> Unit) {
     val s by animateFloatAsState(if (playing) 1.05f else 1f, spring(Spring.DampingRatioMediumBouncy), label = "p")
+    val src = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val press = com.beatpath.app.ui.aero.clayPress(src)
     val edge = when { selected && result == true -> AeroColors.Leaf; selected && result == false -> AeroColors.Amber; result == false && correct -> AeroColors.Leaf; selected -> AeroColors.Primary; else -> Color(0xCCFFFFFF) }
     if (small) {
         // short pad: small orb beside the label, so nothing gets cut off
-        Row(modifier.scale(s).glass(24.dp).border(3.dp, edge, RoundedCornerShape(24.dp)).clickable(onClick = onClick)
+        Row(modifier.scale(s).claySurface(Gel.Cream, 24.dp, depth = 5.dp, press = press, outline = edge.takeIf { it != Color(0xCCFFFFFF) }).clip(RoundedCornerShape(24.dp)).clickable(src, null, onClick = onClick)
             .semantics { contentDescription = "$label${if (selected) ", selected" else ""}" }, horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(34.dp).drawBehind {
                 drawCircle(Brush.verticalGradient(listOf(Color(0xFF5FD4F5), Color(0xFF0B7FB8))))
@@ -342,7 +343,7 @@ private fun Pad(label: String, selected: Boolean, result: Boolean?, playing: Boo
         }
         return
     }
-    Column(modifier.scale(s).glass(24.dp).border(3.dp, edge, RoundedCornerShape(24.dp)).clickable(onClick = onClick)
+    Column(modifier.scale(s).claySurface(Gel.Cream, 24.dp, depth = 5.dp, press = press, outline = edge.takeIf { it != Color(0xCCFFFFFF) }).clip(RoundedCornerShape(24.dp)).clickable(src, null, onClick = onClick)
         .semantics { contentDescription = "$label${if (selected) ", selected" else ""}" }, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         Box(Modifier.size(56.dp).drawBehind {
             drawCircle(Brush.verticalGradient(listOf(Color(0xFF5FD4F5), Color(0xFF0B7FB8))))

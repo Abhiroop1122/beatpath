@@ -1,5 +1,6 @@
 package com.beatpath.app.ui.studio
 
+import com.beatpath.app.ui.aero.flBox
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -63,7 +64,7 @@ fun NoteListEditor(pattern: Pattern, channel: ChannelKind, rows: IntRange, snap:
         }
         LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxSize()) {
             items(notes, key = { it.id }) { n ->
-                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Fl.Dark).border(1.dp, Fl.Edge, RoundedCornerShape(8.dp)).padding(8.dp)) {
+                Column(Modifier.fillMaxWidth().flBox(8.dp).padding(8.dp)) {
                     Text("${if (channel.isDrum) channel.label else Pitch.flName(n.pitch)} · ${where(n.startTick)} · ${len(n.durationTicks)} · velocity ${n.velocity}",
                         color = Fl.Text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.clickable { hear(n) }.semantics { contentDescription = "${if (channel.isDrum) channel.label else Pitch.flName(n.pitch)}, ${where(n.startTick)}, ${len(n.durationTicks)}, velocity ${n.velocity}. Double tap to hear." })

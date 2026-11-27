@@ -20,6 +20,7 @@ import kotlin.math.abs
  * Keys in every direction, harmony lines, melodic rhythm, minor and modes, richer progressions,
  * motif development, phrase forms and full song melodies. Everything is written in the Piano roll
  * and auto-checked on exactly the rule the lesson teaches.
+ * Text is written for young beginners: short sentences, every new word explained where it first appears.
  */
 object TheoryCurriculum {
 
@@ -32,6 +33,22 @@ object TheoryCurriculum {
     private fun lead(p: Project) = notes(p, LEAD)
     private fun bar(p: Project, k: ChannelKind, b: Int) = notes(p, k).filter { it.startTick / TICKS_PER_BAR == b }
     private fun rel(ns: List<Note>, b: Int) = ns.map { it.startTick - b * TICKS_PER_BAR }
+
+    /** Kid-friendly position: "bar 1, beat 2" or "bar 1, the "and" after beat 2". */
+    private fun at(t: Int): String {
+        val b = t / TICKS_PER_BAR + 1; val r = t % TICKS_PER_BAR; val beat = r / TICKS_PER_BEAT + 1
+        return when (r % TICKS_PER_BEAT) {
+            0 -> "bar $b, beat $beat"
+            TICKS_PER_BEAT / 2 -> "bar $b, the \"and\" after beat $beat"
+            else -> Checks.posName(t)
+        }
+    }
+
+    /** Outline the next missing target note (pitch, tick, length), one at a time. */
+    private fun outline(k: ChannelKind, ts: List<Triple<Int, Int, Int>>) = { p: Project ->
+        ts.filter { (pp, t, _) -> notes(p, k).none { it.pitch == pp && it.startTick == t } }
+            .take(1).map { (pp, t, len) -> Ghost(k, pitch = pp, tick = t, lengthTicks = len) }
+    }
 
     private val G_MAJOR = setOf(7, 9, 11, 0, 2, 4, 6)
     private val F_MAJOR = setOf(5, 7, 9, 10, 0, 2, 4)
@@ -55,7 +72,7 @@ object TheoryCurriculum {
             else -> {
                 val i = got.indices.firstOrNull { it >= want.size || got[it].pitch != want[it] } ?: want.size
                 if (i < want.size && i < got.size) no("Check note ${i + 1}", "Note ${i + 1} should be ${Pitch.flName(want[i])}, not ${Pitch.flName(got[i].pitch)}. $hint")
-                else no("Too many notes", "Use exactly ${want.size} notes, left to right.")
+                else no("Too many notes", "Use exactly ${want.size} notes, one after another, left to right.")
             }
         }
     }
@@ -65,67 +82,78 @@ object TheoryCurriculum {
             ?.let { (i, pp) -> listOf(Ghost(LEAD, pitch = pp, tick = i * len, lengthTicks = len)) } ?: emptyList()
     }
 
-    private fun scaleLesson(id: String, title: String, idea: String, say: String, want: List<Int>, rows: IntRange, hint: String, tip: String, level: Int = 11) =
+    private fun scaleLesson(
+        id: String, title: String, idea: String, say: String, want: List<Int>, rows: IntRange, hint: String, tip: String, level: Int = 11,
+        okBody: String = "Same recipe as C major: W W H W W W H. Only the starting note changed.",
+    ) =
         Lesson(id, level, title, idea, 3, 90, 1, show = listOf(LEAD), rows = rows, snap = Snap.HALF,
             steps = listOf(
-                LessonStep(say, "Build it from the outline, low to high.", Win.ROLL, LEAD, guides = scaleGuide(want), hint = hint,
-                    check = { p, _ -> sequenceCheck(p, want, "That's $title!", "Same W-W-H-W-W-W-H recipe — just a new starting note.", hint) }),
-                LessonStep("Again from memory — no outline.", "Build it again without help.", Win.ROLL, LEAD, setup = { it.set(LEAD, emptyList()) }, hint = hint,
-                    check = { p, _ -> sequenceCheck(p, want, "From memory!", "You can build this scale anywhere now.", hint) }),
+                LessonStep(say, "Follow the outlines, from low to high.", Win.ROLL, LEAD, guides = scaleGuide(want), hint = hint,
+                    check = { p, _ -> sequenceCheck(p, want, "That's $title!", okBody, hint) }),
+                LessonStep("Now build it again with no outlines. Can you remember it?", "Build the scale again from memory.", Win.ROLL, LEAD, setup = { it.set(LEAD, emptyList()) }, hint = hint,
+                    check = { p, _ -> sequenceCheck(p, want, "From memory!", "You can build this scale all by yourself now.", hint) }),
             ), flTip = tip)
 
     /** Lead2 must answer every lead note at the same tick, [lo]..[hi] semitones below, inside [scale]. */
     private fun harmonyCheck(p: Project, lo: Int, hi: Int, name: String, scale: Set<Int> = Scales.C_MAJOR): Verdict {
         val l = lead(p); val h = notes(p, LEAD2)
+        val size = if (lo == hi) "$lo" else "$lo or $hi"
+        val a = if (name.startsWith("o")) "an" else "a"
         for (n in l) {
-            val m = h.firstOrNull { it.startTick == n.startTick } ?: return no("Harmony missing", "Add a $name under ${Pitch.flName(n.pitch)} at ${Checks.posName(n.startTick)}.")
+            val m = h.firstOrNull { it.startTick == n.startTick } ?: return no("Harmony missing", "Add a note $a $name below ${Pitch.flName(n.pitch)}, at ${at(n.startTick)}.")
             val d = n.pitch - m.pitch
-            if (d !in lo..hi) return no("Not a $name", "Under ${Pitch.flName(n.pitch)} you have ${Pitch.flName(m.pitch)} ($d semitones below). A $name is $lo–$hi semitones below.")
-            if (m.pitch % 12 !in scale) return no("Stay in key", "${Pitch.flName(m.pitch)} isn't in the key — use the shaded rows.")
+            if (d <= 0) return no("Go below", "At ${at(n.startTick)}, Lead 2 plays ${Pitch.flName(m.pitch)}. It should sit under the lead note ${Pitch.flName(n.pitch)}.")
+            if (d !in lo..hi) return no("Not $a $name", "Under ${Pitch.flName(n.pitch)} you have ${Pitch.flName(m.pitch)}, $d half steps lower. You need $size half steps lower.")
+            if (m.pitch % 12 !in scale) return no("Stay in key", "${Pitch.flName(m.pitch)} isn't in the key. Use the shaded rows.")
         }
-        if (h.size > l.size) return no("One harmony per note", "Lead 2 should only play where the lead plays.")
-        return ok("Beautiful harmony!", "Two voices moving together — that's how vocal harmonies and twin leads work.")
+        if (h.size > l.size) return no("One harmony per note", "Lead 2 should only play when the lead plays. Remove the extra notes.")
+        return ok("Beautiful harmony!", "Two voices moving together. That's how singers and twin guitars make harmony.")
     }
 
     // =====================================================================
     val levels = listOf(
-        Level(11, "Keys and scales II", "G, F and D major; moving a melody to a new key.", Track.NOTES),
-        Level(12, "Harmony lines", "Thirds, sixths and octaves under a melody.", Track.MELODY),
-        Level(13, "Melodic rhythm", "Syncopation, anticipation, dotted notes, triplets.", Track.MELODY),
-        Level(14, "Minor keys and modes", "Natural & harmonic minor, Dorian, minor melodies.", Track.HARMONY),
-        Level(15, "Progressions II", "Circle of fifths, secondary dominants, borrowed chords.", Track.HARMONY),
-        Level(16, "Melody development", "Augment, invert, fragment, and place the climax.", Track.MELODY),
-        Level(17, "Phrases and form", "Periods, sentences, verse vs chorus.", Track.MELODY),
-        Level(18, "Songwriting", "Harmonise a tune, an 8-bar hook, your final song.", Track.ARRANGE),
+        Level(11, "New keys", "G, F and D major, and moving a tune to a new key.", Track.NOTES),
+        Level(12, "Harmony lines", "A second voice under the tune: octaves, 3rds and 6ths.", Track.MELODY),
+        Level(13, "Tune rhythms", "Long-short notes, off-beat notes, early notes and triplets.", Track.MELODY),
+        Level(14, "Minor keys and modes", "Sad scales: natural minor, harmonic minor and Dorian.", Track.HARMONY),
+        Level(15, "Chord journeys", "Falling 5ths, a walking bass, surprise chords and going-to chords.", Track.HARMONY),
+        Level(16, "Growing a tune", "Stretch an idea, chop it, flip it, and find the peak.", Track.MELODY),
+        Level(17, "Shaping a song", "Musical sentences, 8-bar questions and answers, verse and chorus.", Track.MELODY),
+        Level(18, "Songwriting", "Chords for a tune, an 8-bar hook, and your final song.", Track.ARRANGE),
     )
 
-    // ---------------- Level 11 · Keys and scales II ----------------
+    // ---------------- Level 11 · New keys ----------------
     private val l11 = listOf(
-        scaleLesson("key.g-major", "G major", "Start the major recipe on G — you'll need one black key, F♯.",
-            "Same recipe as C major — W W H W W W H — but start on G. One note becomes a black key.",
-            listOf(55, 57, 59, 60, 62, 64, 66, 67), 53..69, "From G: whole, whole, half, whole, whole, whole, half. The 7th note is F♯.",
+        scaleLesson("key.g-major", "G major", "Use the major recipe from G. You need one black key: F♯.",
+            "A key is a home note plus its scale. Use the C major recipe, W W H W W W H, but start on G.",
+            listOf(55, 57, 59, 60, 62, 64, 66, 67), 53..69, "Start on G4. Go G A B C D E, then the black key F♯, then G5.",
             "In FL: Piano roll → Snap to scale → Major, root G highlights G major."),
-        scaleLesson("key.f-major", "F major", "Start on F and the 4th note becomes B♭.",
-            "Now from F. Watch the half step between notes 3 and 4 — that's where B♭ comes in.",
-            listOf(53, 55, 57, 58, 60, 62, 64, 65), 52..67, "From F: whole, whole, half — so A to B♭, not B.",
+        scaleLesson("key.f-major", "F major", "Start the recipe on F. Note 4 becomes a black key: B♭.",
+            "Now start on F. Notes 3 and 4 must be a half step apart. So after A comes B♭, not B.",
+            listOf(53, 55, 57, 58, 60, 62, 64, 65), 52..67, "Start on F4: F G A, then B♭, the black key just below B. Then C D E F.",
             "Every major key has its own key signature: G has one sharp, F has one flat."),
-        Lesson("key.transpose", 11, "Move a melody to a new key", "Transposing: every note moves by the same number of semitones.", 3, 96, 1,
+        Lesson("key.transpose", 11, "Move a tune to a new key", "Move every note up by the same amount. It's the same tune, in a new key.", 3, 96, 1,
             show = listOf(LEAD), rows = 59..84, setup = { it.set(LEAD, listOf(60 to 0, 62 to 240, 64 to 480, 60 to 960, 64 to 1200, 65 to 1440, 67 to 1680).map { (pp, t) -> note(pp, t, 240) }) },
-            steps = listOf(LessonStep("This tune is in C. Move ALL of it up 7 semitones and it's the same tune in G.", "Transpose the whole melody up 7 semitones.", Win.ROLL, LEAD,
-                hint = "Select every note (Select tool), then Shift ↑ seven times — or Ctrl ↑ once and Shift ↓ five times.",
+            steps = listOf(LessonStep("This tune is in C. Move every note up 7 half steps. Then it's the same tune, in G!", "Move the whole tune up 7 half steps.", Win.ROLL, LEAD,
+                hint = "With the Select tool, tap every note. Then tap ↑ semi 7 times. Or tap ↑ oct once, then ↓ semi 5 times.",
                 check = chk@{ p, _ ->
                     val want = listOf(67 to 0, 69 to 240, 71 to 480, 67 to 960, 71 to 1200, 72 to 1440, 74 to 1680)
                     val got = lead(p).map { it.pitch to it.startTick }
-                    if (got == want) ok("Same tune, new key!", "Singers do this all the time to fit their voice.")
-                    else if (got.map { it.second } != want.map { it.second }) no("Keep the rhythm", "Only move notes up — don't change their timing.")
-                    else { val d = got.first().first - 60; no("Not quite", "You moved it $d semitones. G is 7 semitones above C.") }
+                    if (got == want) ok("Same tune, new key!", "Singers do this all the time, to fit a song to their voice.")
+                    else if (got.map { it.second } != want.map { it.second }) no("Keep the rhythm", "Only move notes up. Don't slide them left or right, and keep all 7.")
+                    else {
+                        val d = got.first().first - 60
+                        val i = got.indices.first { got[it] != want[it] }
+                        if (d != 7) no("Not quite", "The first note moved ${if (d > 0) "up $d" else if (d < 0) "down ${-d}" else "0"} half steps. Move every note up 7, so C becomes G.")
+                        else no("Not quite", "At ${at(got[i].second)} you have ${Pitch.flName(got[i].first)}. It should be ${Pitch.flName(want[i].first)}. Move every note up the same amount.")
+                    }
                 })), flTip = "In FL, Ctrl+A selects all notes in the Piano roll; Shift+↑ moves them a semitone."),
-        Lesson("key.jam-d-major", 11, "Jam: a melody in D major", "D major has two sharps: F♯ and C♯.", 3, 96, 2,
+        Lesson("key.jam-d-major", 11, "Jam: a tune in D major", "D major has two black keys: F♯ and C♯.", 3, 96, 2,
             show = listOf(LEAD), rows = 59..79, scale = D_MAJOR, snap = Snap.HALF, jam = true,
-            steps = listOf(LessonStep("Shaded rows are D major. Write 6–12 notes, mostly steps, and end on D.", "Write a D-major melody that ends on D.", Win.ROLL, LEAD,
-                hint = "Remember: F♯ and C♯, never F or C.",
-                check = { p, _ -> Checks.melody(p, LEAD, Checks.MelodyRules(minNotes = 6, scale = D_MAJOR, minStepwise = 0.5f, endsOnPc = 2), "A melody in a new key — your ears and hands both know D major now.")
-                    .let { if (it.pass && lead(p).size > 12) no("A bit long", "12 notes max.") else it } })),
+            steps = listOf(LessonStep("The shaded rows are D major. Write 6 to 12 notes. Move mostly by steps, and end on D.", "Write a D major tune of 6 to 12 notes. End on D.", Win.ROLL, LEAD,
+                hint = "A step is the next shaded row. Use F♯ and C♯, never plain F or C. Finish on D5 or D6.",
+                check = { p, _ -> Checks.melody(p, LEAD, Checks.MelodyRules(minNotes = 6, scale = D_MAJOR, minStepwise = 0.5f, endsOnPc = 2), "A tune in a brand new key. Your ears and hands know D major now.")
+                    .let { if (it.pass && lead(p).size > 12) no("Too many notes", "Use 12 notes or fewer.") else it } })),
             flTip = "Set FL's scale highlighting to D major to see the same shaded rows."),
     )
 
@@ -133,222 +161,290 @@ object TheoryCurriculum {
     private val hook = listOf(64 to 0, 65 to 240, 67 to 480, 69 to 960, 67 to 1440, 72 to 1920, 71 to 2400, 69 to 2880, 67 to 3360)
     private fun hookSetup(p: Project) = p.set(LEAD, hook.map { (pp, t) -> note(pp, t, 240) })
     private val l12 = listOf(
-        Lesson("harm.thirds", 12, "Harmony in thirds", "A third below each note — the sweetest harmony.", 4, 90, 2,
-            show = listOf(LEAD, LEAD2), locked = setOf(LEAD), ghost = setOf(LEAD), rows = 52..76, scale = Scales.C_MAJOR, setup = ::hookSetup,
-            steps = listOf(LessonStep("The lead is locked. On Lead 2, put a note a third below each lead note — skip one shaded row down.", "Lead 2: a third below every lead note, same timing.", Win.ROLL, LEAD2,
-                hint = "Under E put C, under F put D, under G put E… (two shaded rows down = 3 or 4 semitones).",
-                check = { p, _ -> harmonyCheck(p, 3, 4, "third") })),
-            flTip = "In FL, select the lead notes, Ctrl+C, paste into a second channel and move them down two scale rows."),
-        Lesson("harm.sixths", 12, "Harmony in sixths", "A sixth below sounds wider and richer than a third.", 3, 90, 2,
-            show = listOf(LEAD, LEAD2), locked = setOf(LEAD), ghost = setOf(LEAD), rows = 48..76, scale = Scales.C_MAJOR, setup = ::hookSetup,
-            steps = listOf(LessonStep("Now go further down: a sixth below each note — five shaded rows down.", "Lead 2: a sixth (8–9 semitones) below every lead note.", Win.ROLL, LEAD2,
-                hint = "A sixth below is the same as a third above, moved down an octave. Under E5 put G4.",
-                check = { p, _ -> harmonyCheck(p, 8, 9, "sixth") })),
-            flTip = "Thirds and sixths are the classic harmony intervals — try both on a desktop lead in FL."),
-        Lesson("harm.octave", 12, "Double it an octave down", "Octave doubling makes a hook fat without new notes.", 2, 90, 2,
-            show = listOf(LEAD, LEAD2), locked = setOf(LEAD), ghost = setOf(LEAD), rows = 48..76, setup = ::hookSetup,
-            steps = listOf(LessonStep("Copy the hook exactly 12 semitones lower on Lead 2.", "Lead 2: the same hook, one octave below.", Win.ROLL, LEAD2,
-                hint = "Every Lead 2 note = lead note − 12. E5 → E4.",
+        Lesson("harm.octave", 12, "Double it an octave down", "Play the same tune 12 half steps lower. It sounds bigger, with no new notes.", 2, 90, 2,
+            show = listOf(LEAD, LEAD2), locked = setOf(LEAD), ghost = setOf(LEAD), rows = 48..76, snap = Snap.HALF, setup = ::hookSetup,
+            steps = listOf(LessonStep("Lead 2 is a second voice. Copy the locked tune onto Lead 2, one octave lower.", "Lead 2: the same notes, one octave lower, at the same times.", Win.ROLL, LEAD2,
+                hint = "Same letter, 12 half steps down: E5 becomes E4. The 2nd note starts on the \"and\" after beat 1.",
                 check = { p, _ -> harmonyCheck(p, 12, 12, "octave") })),
             flTip = "In FL, select notes and press Ctrl+↓ to drop them an octave."),
+        Lesson("harm.thirds", 12, "Harmony in 3rds", "A 3rd below each note is the sweetest harmony.", 4, 90, 2,
+            show = listOf(LEAD, LEAD2), locked = setOf(LEAD), ghost = setOf(LEAD), rows = 52..76, scale = Scales.C_MAJOR, snap = Snap.HALF, setup = ::hookSetup,
+            steps = listOf(LessonStep("Now put a 3rd below each lead note. On the shaded rows, that's two rows down.", "Lead 2: a 3rd below every lead note, at the same time.", Win.ROLL, LEAD2,
+                hint = "Count 3 letters down, starting on the lead note. Under E put C. Under F put D. Under G put E. Under C6 put A5.",
+                check = { p, _ -> harmonyCheck(p, 3, 4, "3rd") })),
+            flTip = "In FL, select the lead notes, Ctrl+C, paste into a second channel and move them down two scale rows."),
+        Lesson("harm.sixths", 12, "Harmony in 6ths", "A 6th below sounds wider and warmer than a 3rd.", 3, 90, 2,
+            show = listOf(LEAD, LEAD2), locked = setOf(LEAD), ghost = setOf(LEAD), rows = 48..76, scale = Scales.C_MAJOR, snap = Snap.HALF, setup = ::hookSetup,
+            steps = listOf(LessonStep("Now go further down: a 6th. Count 6 letters down from each lead note. That's five shaded rows.", "Lead 2: a 6th below every lead note, at the same time.", Win.ROLL, LEAD2,
+                hint = "Under E5, count E D C B A G: put G4. Under F5 put A4. Under G5 put B4.",
+                check = { p, _ -> harmonyCheck(p, 8, 9, "6th") })),
+            flTip = "Thirds and sixths are the classic harmony intervals — try both on a desktop lead in FL."),
     )
 
-    // ---------------- Level 13 · Melodic rhythm ----------------
+    // ---------------- Level 13 · Tune rhythms ----------------
+    private fun syncoCheck(p: Project): Verdict {
+        val ns = lead(p)
+        if (ns.size < 3) return no("More notes", "Write at least 3 notes.")
+        val offs = ns.filter { it.startTick % TICKS_PER_BEAT == 240 }
+        return when {
+            offs.size < 2 -> no("More off-beat notes", "Start at least 2 notes on an \"and\", halfway between two beats.")
+            offs.none { it.durationTicks >= TICKS_PER_BEAT } -> no("Hold one over", "Make one \"and\" note last 1 beat or more, so it rings past the next beat.")
+            ns.any { it.pitch % 12 !in Scales.C_MAJOR } -> no("Stay in key", "Use only the shaded rows.")
+            else -> ok("Bouncy!", "Notes between the beats make a tune bounce. Pop and R&B songs love this.")
+        }
+    }
+    private val dotted = listOf(0 to 720, 720 to 240, 960 to 720, 1680 to 240)
     private val l13 = listOf(
-        Lesson("rhy.syncopation", 13, "Syncopated melody", "Start notes on the \"and\" and hold them across the beat.", 3, 96, 1,
-            show = listOf(LEAD), rows = 59..79, scale = Scales.C_MAJOR, snap = Snap.HALF,
-            steps = listOf(LessonStep("Put at least two notes on the \"and\" (between beats), and let one of them ring over the next beat.", "2+ notes on an \"and\", one held across a beat.", Win.ROLL, LEAD,
-                hint = "Snap is ½ beat: the lines between the strong beat lines are the ands.",
-                check = chk@{ p, _ ->
-                    val ns = lead(p)
-                    if (ns.size < 3) return@chk no("More notes", "Write at least 3 notes.")
-                    val offs = ns.filter { it.startTick % TICKS_PER_BEAT == 240 }
-                    when { offs.size < 2 -> no("More off-beats", "Start at least two notes on an \"and\".")
-                        offs.none { it.durationTicks >= TICKS_PER_BEAT } -> no("Hold one over", "Make one off-beat note last a full beat or more, so it crosses the next beat.")
-                        ns.any { it.pitch % 12 !in Scales.C_MAJOR } -> no("Stay in key", "Use the shaded rows.")
-                        else -> ok("Funky!", "Syncopation makes melodies bounce — pop and R&B live on it.") }
-                })), flTip = "In FL set Snap to ½ beat to place notes on the ands."),
-        Lesson("rhy.anticipation", 13, "Anticipation", "Arrive at the next chord's note half a beat early.", 3, 96, 2,
-            show = listOf(CHORDS, LEAD), locked = setOf(CHORDS), ghost = setOf(CHORDS), rows = 59..79, scale = Scales.C_MAJOR, snap = Snap.HALF,
-            setup = { p -> chords(p, listOf(listOf(60, 64, 67), listOf(55, 59, 62))).set(LEAD, listOf(note(64, 0, 480), note(65, 480, 480), note(64, 960, 480))) },
-            steps = listOf(LessonStep("Bar 2 is a G chord. Put a G-chord note (G, B or D) half a beat BEFORE bar 2 and hold it across the bar line.", "A G, B or D starting at bar 1 beat 4-and, held over into bar 2.", Win.ROLL, LEAD,
-                hint = "Start it on the last ½-beat line of bar 1 and make it at least a beat long.",
-                check = { p, _ ->
-                    val a = lead(p).firstOrNull { it.startTick == TICKS_PER_BAR - 240 }
-                    when { a == null -> no("Arrive early", "Start a note on the \"and\" of beat 4 in bar 1.")
-                        a.pitch % 12 !in setOf(7, 11, 2) -> no("Use the next chord", "That note should belong to G: G, B or D.")
-                        a.durationTicks < TICKS_PER_BEAT -> no("Hold it over", "Make it last at least a beat so it crosses into bar 2.")
-                        else -> ok("Pushed!", "Anticipations make a melody feel eager — it gets there before the band.") }
-                })), flTip = "Anticipations are everywhere in pop toplines — try nudging a downbeat note ½ beat early in FL."),
-        Lesson("rhy.dotted", 13, "Dotted rhythms", "A dotted note is 1½ times as long: long-short, long-short.", 3, 96, 1,
+        Lesson("rhy.dotted", 13, "Long-short rhythms", "A dotted note is one and a half times as long. Long, short, long, short.", 3, 96, 1,
             show = listOf(LEAD), rows = 59..79, snap = Snap.HALF,
-            steps = listOf(LessonStep("Copy the outlined long-short rhythm: 1½ beats, ½ beat, 1½ beats, ½ beat. Any notes you like.", "Rhythm: 1½, ½, 1½, ½ beats.", Win.ROLL, LEAD,
-                guides = { p -> listOf(0 to 720, 720 to 240, 960 to 720, 1680 to 240).filter { (t, d) -> lead(p).none { it.startTick == t && it.durationTicks == d } }.take(1).map { (t, d) -> Ghost(LEAD, pitch = 64, tick = t, lengthTicks = d) } },
-                hint = "Notes start on beat 1, the \"and\" of 2, beat 3 and the \"and\" of 4.",
+            steps = listOf(LessonStep("A dot makes a note longer by half. Copy the outlines: long, short, long, short. Any pitch is fine.", "Copy the rhythm: 1½ beats, ½ beat, 1½ beats, ½ beat.", Win.ROLL, LEAD,
+                guides = { p -> dotted.filter { (t, d) -> lead(p).none { it.startTick == t && it.durationTicks == d } }.take(1).map { (t, d) -> Ghost(LEAD, pitch = 64, tick = t, lengthTicks = d) } },
+                hint = "Notes start on beat 1, the \"and\" after beat 2, beat 3, and the \"and\" after beat 4. Long notes fill 3 small cells.",
                 check = { p, _ ->
                     val got = lead(p).map { it.startTick to it.durationTicks }
-                    if (got == listOf(0 to 720, 720 to 240, 960 to 720, 1680 to 240)) ok("Dotted!", "Long-short gives a lilting, marching feel.") else no("Check the lengths", "Long notes are 1½ beats (3 half-beat cells), short ones ½ beat.")
+                    if (got == dotted) ok("Dotted!", "Long-short gives a skipping, marching feel.")
+                    else dotted.firstOrNull { it !in got }?.let { (t, d) -> no("Check the rhythm", "At ${at(t)} you need a note ${if (d == 720) "1½ beats" else "½ beat"} long.") }
+                        ?: no("Extra notes", "Use only 4 notes: long, short, long, short.")
                 })), flTip = "Drag the right edge of notes in FL with Snap ½ beat to make dotted lengths."),
-        Lesson("rhy.triplets", 13, "Triplets", "Three equal notes squeezed into one beat.", 3, 90, 1,
-            show = listOf(LEAD), rows = 59..79, scale = Scales.C_MAJOR, snap = Snap.TRIPLET,
-            steps = listOf(LessonStep("Snap is now ⅓ beat. Fill beats 1 and 2 with three notes each — a rolling triplet feel.", "Six notes: three in beat 1, three in beat 2.", Win.ROLL, LEAD,
-                hint = "Tap three cells inside beat 1, then three inside beat 2.",
+        Lesson("rhy.syncopation", 13, "Off-beat tune", "Syncopation: start notes on the \"and\" and let them ring over the beat.", 3, 96, 1,
+            show = listOf(LEAD), rows = 59..79, scale = Scales.C_MAJOR, snap = Snap.HALF,
+            steps = listOf(
+                LessonStep("Syncopation means notes start between the beats. It makes a tune bounce. Follow the outlines.", "Copy the outlined notes.", Win.ROLL, LEAD,
+                    guides = outline(LEAD, listOf(Triple(64, 0, 240), Triple(67, 240, 480), Triple(65, 720, 240), Triple(64, 960, 960))),
+                    hint = "The 2nd note starts on the \"and\" after beat 1 and rings past beat 2.",
+                    check = { p, _ -> syncoCheck(p) }),
+                LessonStep("Now make your own. Put 2 notes on an \"and\", and let one ring past the next beat.", "Write 3+ notes: 2 on an \"and\", 1 held over a beat.", Win.ROLL, LEAD,
+                    setup = { it.set(LEAD, emptyList()) },
+                    hint = "The thin lines between the beat lines are the \"and\"s. Make one of those notes 1 beat long or more.",
+                    check = { p, _ -> syncoCheck(p) }),
+            ), flTip = "In FL set Snap to ½ beat to place notes on the ands."),
+        Lesson("rhy.anticipation", 13, "Arrive early", "An early note plays the next chord's note half a beat before it starts.", 3, 96, 2,
+            show = listOf(CHORDS, LEAD), locked = setOf(CHORDS), ghost = setOf(CHORDS), rows = 59..79, scale = Scales.C_MAJOR, snap = Snap.HALF,
+            setup = { p -> chords(p, listOf(listOf(60, 64, 67), listOf(55, 59, 62))).set(LEAD, listOf(note(64, 0, 480), note(65, 480, 480), note(64, 960, 480))) },
+            steps = listOf(LessonStep("Bar 2 is a G chord. Sneak in a G chord note half a beat early. Let it ring into bar 2.", "Start G, B or D on the last \"and\" of bar 1. Hold it into bar 2.", Win.ROLL, LEAD,
+                hint = "Bar 1, the \"and\" after beat 4: the last thin line before bar 2. Make the note 1 beat long.",
+                hintGhosts = listOf(Ghost(LEAD, pitch = 67, tick = TICKS_PER_BAR - 240, lengthTicks = TICKS_PER_BEAT)),
                 check = { p, _ ->
-                    val on = lead(p).map { it.startTick }.filter { it < 960 }
-                    if (on.toSet() == setOf(0, 160, 320, 480, 640, 800)) ok("Triplets!", "Three-in-one gives a swing or waltz-like roll.") else no("Even thirds", "Each beat needs notes at its start, ⅓ and ⅔ of the way through.")
-                })), flTip = "In FL's Snap menu pick 1/3 beat for triplets."),
+                    val a = lead(p).firstOrNull { it.startTick == TICKS_PER_BAR - 240 }
+                    when { a == null -> no("Arrive early", "Start a note in bar 1, on the \"and\" after beat 4.")
+                        a.pitch % 12 !in setOf(7, 11, 2) -> no("Use the next chord", "That note should be G, B or D, the notes of the G chord.")
+                        a.durationTicks < TICKS_PER_BEAT -> no("Hold it over", "Make it 1 beat long or more, so it rings into bar 2.")
+                        else -> ok("Early bird!", "Arriving early makes a tune sound excited. It gets there before the band.") }
+                })), flTip = "Anticipations are everywhere in pop toplines — try nudging a downbeat note ½ beat early in FL."),
+        Lesson("rhy.triplets", 13, "Triplets", "A triplet squeezes three equal notes into one beat.", 3, 90, 1,
+            show = listOf(LEAD), rows = 59..79, scale = Scales.C_MAJOR, snap = Snap.TRIPLET,
+            steps = listOf(
+                LessonStep("Snap is now ⅓ beat, so each beat has 3 small cells. Say \"trip-a-let\". Follow the outlines in beat 1.", "Put three notes in beat 1.", Win.ROLL, LEAD,
+                    guides = outline(LEAD, listOf(Triple(64, 0, 160), Triple(65, 160, 160), Triple(67, 320, 160))),
+                    hint = "Tap the 3 small cells inside beat 1, one after another.",
+                    check = { p, _ ->
+                        if (lead(p).map { it.startTick }.filter { it < 480 }.toSet() == setOf(0, 160, 320)) ok("Trip-a-let!", "Three even notes in one beat.")
+                        else no("Three even notes", "Beat 1 needs 3 notes, one in each small cell.")
+                    }),
+                LessonStep("Now fill beat 2 with three more, on your own. Hear it roll?", "Put three notes in beat 2 as well.", Win.ROLL, LEAD,
+                    hint = "Beat 2 also has 3 small cells. Put one note in each.",
+                    check = { p, _ ->
+                        val on = lead(p).map { it.startTick }.filter { it < 960 }
+                        if (on.toSet() == setOf(0, 160, 320, 480, 640, 800)) ok("Triplets!", "Three notes in a beat give a rolling, galloping feel.") else no("Three in each beat", "Beats 1 and 2 each need 3 notes, one in each small cell.")
+                    }),
+            ), flTip = "In FL's Snap menu pick 1/3 beat for triplets."),
     )
 
     // ---------------- Level 14 · Minor keys and modes ----------------
     private val l14 = listOf(
-        scaleLesson("minor.natural", "A natural minor", "Start on A and use only white keys: the relative minor of C.",
-            "A minor uses the same white keys as C major — it just starts on A. Hear how it sounds sadder?",
-            listOf(57, 59, 60, 62, 64, 65, 67, 69), 55..71, "White keys only, from A4 up to A5.", "In FL's scale menu, choose Minor (aeolian), root A.", level = 14),
-        scaleLesson("minor.harmonic", "A harmonic minor", "Raise the 7th note: G becomes G♯ and pulls hard back to A.",
-            "Harmonic minor raises the 7th — G♯ instead of G. That gap gives it an exotic, dramatic sound.",
-            listOf(57, 59, 60, 62, 64, 65, 68, 69), 55..71, "Like natural minor, but the 7th note is G♯ (a black key).", "FL's scale menu has Harmonic minor too.", level = 14),
-        scaleLesson("mode.dorian", "D Dorian", "White keys from D: minor, but with a bright 6th (B).",
-            "Start on D and use only white keys. It's minor — but the 6th note, B, adds a cool, jazzy brightness.",
-            listOf(62, 64, 65, 67, 69, 71, 72, 74), 60..76, "White keys only, from D5 up to D6.", "Dorian is all over funk and lo-fi. FL calls it Dorian in the scale menu.", level = 14),
-        Lesson("minor.melody", 14, "Jam: a minor melody", "Use G♯ over the E chord for that dramatic minor pull.", 4, 90, 4,
+        scaleLesson("minor.natural", "A natural minor", "Start on A and use only white keys. It sounds sadder than C major.",
+            "A minor uses the same white keys as C major. It just starts on A. Hear how it sounds sadder?",
+            listOf(57, 59, 60, 62, 64, 65, 67, 69), 55..71, "White keys only, from A4 up to A5: A B C D E F G A.", "In FL's scale menu, choose Minor (aeolian), root A.", level = 14,
+            okBody = "Natural minor's recipe is W H W W H W W. Same keys as C major, new home."),
+        scaleLesson("minor.harmonic", "A harmonic minor", "Raise note 7 a half step: G becomes G♯ and pulls hard up to A.",
+            "Harmonic minor changes one note. Note 7, G, goes up to G♯. Now it leans hard into A.",
+            listOf(57, 59, 60, 62, 64, 65, 68, 69), 55..71, "Like A natural minor, but note 7 is the black key G♯, just below A5.", "FL's scale menu has Harmonic minor too.", level = 14,
+            okBody = "One raised note gives a big, dramatic, movie-like sound."),
+        scaleLesson("mode.dorian", "D Dorian", "A mode is a scale that starts on a different white key. Dorian starts on D.",
+            "A mode uses the white keys but starts somewhere new. Start on D. It sounds minor, with one bright note: B.",
+            listOf(62, 64, 65, 67, 69, 71, 72, 74), 60..76, "White keys only, from D5 up to D6: D E F G A B C D.", "Dorian is all over funk and lo-fi. FL calls it Dorian in the scale menu.", level = 14,
+            okBody = "D to F is 3 half steps, so it sounds minor. Note 6, B, adds a cool, bright color."),
+        Lesson("minor.melody", 14, "Jam: a minor tune", "Use G♯ over the E chord for a dramatic minor pull.", 4, 90, 4,
             show = listOf(CHORDS, LEAD), locked = setOf(CHORDS), ghost = setOf(CHORDS), rows = 55..79, snap = Snap.HALF, jam = true,
             setup = { p -> chords(p, listOf(listOf(57, 60, 64), listOf(62, 65, 69), listOf(56, 59, 64), listOf(57, 60, 64))) },
-            steps = listOf(LessonStep("Chords: Am – Dm – E – Am. Write a melody in A minor; over the E chord (bar 3) use G♯, and end on A.", "A-minor melody with a G♯ in bar 3, ending on A.", Win.ROLL, LEAD,
-                hint = "G♯ is the black key just below A. It wants to resolve up to A.",
+            steps = listOf(LessonStep("The chords are Am, Dm, E, Am. Write a tune in A minor. Over the E chord in bar 3, use G♯. End on A.", "Write 6+ notes in A minor. Put a G♯ in bar 3 and end on A.", Win.ROLL, LEAD,
+                hint = "The E chord is E, G♯, B. G♯ is the black key just below A. It wants to step up to A.",
                 check = chk@{ p, _ ->
                     val ns = lead(p)
                     when { ns.size < 6 -> no("More notes", "Write at least 6 notes.")
-                        ns.any { it.pitch % 12 !in (A_HARMONIC + 7) } -> no("Stay in A minor", "Use A B C D E F G (and G♯ over E).")
-                        bar(p, LEAD, 2).none { it.pitch % 12 == 8 } -> no("Use G♯", "Bar 3 is the E chord — put a G♯ in it.")
-                        ns.last().pitch % 12 != 9 -> no("Come home", "End on A.")
-                        else -> ok("Level 14 complete!", "That G♯ → A pull is the sound of minor-key drama.") }
+                        ns.any { it.pitch % 12 !in (A_HARMONIC + 7) } -> no("Stay in A minor", "Use A B C D E F G, plus G♯ over the E chord.")
+                        bar(p, LEAD, 2).none { it.pitch % 12 == 8 } -> no("Use G♯", "Bar 3 is the E chord. Put a G♯ somewhere in bar 3.")
+                        ns.last().pitch % 12 != 9 -> no("Come home", "Make your last note an A.")
+                        else -> ok("Level 14 complete!", "That G♯ to A pull is the sound of minor-key drama.") }
                 })), flTip = "Try the same progression in FL with a string or piano sound — instant film score."),
     )
 
-    // ---------------- Level 15 · Progressions II ----------------
-    private fun progLesson(id: String, title: String, idea: String, say: String, bars: List<Pair<String, Set<Int>>>, hint: String, tip: String, bass: List<Int?>? = null) =
-        Lesson(id, 15, title, idea, 4, 90, bars.size, show = listOf(CHORDS), rows = 43..79,
-            steps = listOf(LessonStep(say, "Build: ${bars.joinToString(" – ") { it.first }}.", Win.ROLL, CHORDS, hint = hint,
-                check = chk@{ p, _ ->
-                    bars.forEachIndexed { i, (name, set) ->
-                        val v = Checks.chordAt(p, CHORDS, i * TICKS_PER_BAR, set, name, bassPc = bass?.getOrNull(i))
-                        if (!v.pass) return@chk v.copy(body = "Bar ${i + 1}: " + v.body)
-                    }
-                    ok("Great progression!", bars.joinToString(" → ") { it.first } + ". Play it and feel where it pulls.")
-                })), flTip = tip)
+    // ---------------- Level 15 · Chord journeys ----------------
+    /** Each bar: chord name + the voicing shown as outlines. Step 1 is outlined, step 2 is from memory. */
+    private fun progLesson(id: String, title: String, idea: String, say: String, bars: List<Pair<String, List<Int>>>, hint: String, tip: String,
+                           bass: List<Int?>? = null, done: String = "Great progression!"): Lesson {
+        val names = bars.joinToString(", ") { it.first }
+        fun verdict(p: Project, head: String): Verdict {
+            bars.forEachIndexed { i, (name, voicing) ->
+                val v = Checks.chordAt(p, CHORDS, i * TICKS_PER_BAR, pcs(voicing), name, bassPc = bass?.getOrNull(i))
+                if (!v.pass) return v.copy(body = "Bar ${i + 1}: " + v.body)
+            }
+            return ok(head, bars.joinToString(" → ") { it.first } + ". Play it and feel where it pulls.")
+        }
+        val guide = { p: Project ->
+            bars.withIndex().firstOrNull { (i, b) -> !Checks.chordAt(p, CHORDS, i * TICKS_PER_BAR, pcs(b.second), b.first, bassPc = bass?.getOrNull(i)).pass }
+                ?.let { (i, b) -> b.second.filter { pp -> notes(p, CHORDS).none { it.pitch == pp && it.startTick == i * TICKS_PER_BAR } }
+                    .map { Ghost(CHORDS, pitch = it, tick = i * TICKS_PER_BAR, lengthTicks = TICKS_PER_BAR) } } ?: emptyList()
+        }
+        return Lesson(id, 15, title, idea, 5, 90, bars.size, show = listOf(CHORDS), rows = 43..79,
+            steps = listOf(
+                LessonStep(say, "Follow the outlines: $names.", Win.ROLL, CHORDS, guides = guide, hint = hint, check = { p, _ -> verdict(p, "Nice chords!") }),
+                LessonStep("Now build it again with no outlines. You can do it!", "Build $names from memory.", Win.ROLL, CHORDS,
+                    setup = { it.set(CHORDS, emptyList()) }, hint = hint, check = { p, _ -> verdict(p, done) }),
+            ), flTip = tip)
+    }
     private val l15 = listOf(
-        progLesson("prog.circle", "Circle of fifths", "Each chord's root falls a fifth: Am → Dm → G → C.",
-            "Roots falling by fifths sound like they're always heading home. Build Am, Dm, G, C.",
-            listOf("Am" to setOf(9, 0, 4), "Dm" to setOf(2, 5, 9), "G" to setOf(7, 11, 2), "C" to setOf(0, 4, 7)),
-            "Dm = D F A. G = G B D.", "This chain powers jazz standards and countless pop songs."),
-        progLesson("prog.secondary-dominant", "Secondary dominant", "A7 is the \"five\" of Dm: it pulls hard into it.",
-            "Make bar 2 an A7 — A, C♯, E, G. The C♯ is borrowed; it yanks the ear toward Dm.",
-            listOf("C" to setOf(0, 4, 7), "A7" to setOf(9, 1, 4, 7), "Dm" to setOf(2, 5, 9), "G7" to setOf(7, 11, 2, 5)),
-            "A7 = A C♯ E G. G7 = G B D F.", "Secondary dominants are the secret behind \"Beatles-y\" chord moves."),
-        progLesson("prog.borrowed", "Borrowed chord", "F minor in a C-major song: a bittersweet twist.",
-            "C – F – Fm – C. In bar 3, lower F's middle note A to A♭: a chord borrowed from C minor.",
-            listOf("C" to setOf(0, 4, 7), "F" to setOf(5, 9, 0), "Fm" to setOf(5, 8, 0), "C" to setOf(0, 4, 7)),
-            "Fm = F A♭ C. Only the middle note moves down.", "Borrowed iv is the emotional chord in many ballads."),
-        progLesson("prog.bassline", "Descending bass line", "Keep the chords, walk the lowest note down: C – G/B – Am – Am/G.",
-            "Same chords, but choose the bottom note: C, then B, then A, then G — a walking-down bass.",
-            listOf("C" to setOf(0, 4, 7), "G/B" to setOf(7, 11, 2), "Am" to setOf(9, 0, 4), "Am/G" to setOf(9, 0, 4, 7)),
-            "G/B means a G chord with B as its lowest note. Am/G adds G under A minor.", "Slash chords like G/B are written the same way in FL's chord stamp.",
+        progLesson("prog.circle", "Chord chain: falling 5ths", "Each chord's root falls a 5th to the next: Am → Dm → G → C.",
+            "Count 5 letters down from A: A G F E D. So Am falls to Dm. Keep falling by 5ths and you reach C, home!",
+            listOf("Am" to listOf(57, 60, 64), "Dm" to listOf(62, 65, 69), "G" to listOf(55, 59, 62), "C" to listOf(60, 64, 67)),
+            "Am = A C E. Dm = D F A. G = G B D. C = C E G. One chord per bar, on beat 1.", "This chain powers jazz standards and countless pop songs."),
+        progLesson("prog.bassline", "Walking bass down", "Keep simple chords, but choose the bottom note: C, B, A, G walks down.",
+            "G/B means a G chord with B at the bottom, like a flipped chord. The bottom notes walk down: C, B, A, G.",
+            listOf("C" to listOf(60, 64, 67), "G/B" to listOf(59, 62, 67), "Am" to listOf(57, 60, 64), "Am/G" to listOf(55, 57, 60, 64)),
+            "C = C E G. G/B = B D G, with B lowest. Am = A C E. Am/G = A minor with an extra G at the very bottom.",
+            "Slash chords like G/B are written the same way in FL's chord stamp.",
             bass = listOf(0, 11, 9, 7)),
+        progLesson("prog.borrowed", "A surprise color chord", "Borrow Fm from C minor for a bittersweet surprise in a C major song.",
+            "C, F, Fm, C. Fm is borrowed from C minor, like a surprise color. Just move F's middle note, A, down to A♭.",
+            listOf("C" to listOf(60, 64, 67), "F" to listOf(53, 57, 60), "Fm" to listOf(53, 56, 60), "C" to listOf(60, 64, 67)),
+            "F = F A C. Fm = F A♭ C. A♭ is the black key just below A. Only the middle note moves.", "Borrowed iv is the emotional chord in many ballads."),
+        progLesson("prog.secondary-dominant", "A going-to chord", "A7 is a chord that wants to go to Dm. It pulls hard, like G7 pulls to C.",
+            "G7 wants to go home to C. A7 does the same job for Dm. Its C♯ is a black key that leans up into D.",
+            listOf("C" to listOf(60, 64, 67), "A7" to listOf(57, 61, 64, 67), "Dm" to listOf(62, 65, 69), "G7" to listOf(55, 59, 62, 65)),
+            "C = C E G. A7 is G7 moved up 2 half steps: A C♯ E G. Dm = D F A. G7 = G B D F.", "Secondary dominants are the secret behind \"Beatles-y\" chord moves.",
+            done = "Level 15 complete!"),
     )
 
-    // ---------------- Level 16 · Melody development ----------------
+    // ---------------- Level 16 · Growing a tune ----------------
     private val motif = listOf(60 to 0, 64 to 240, 62 to 480, 67 to 960)
+    private val motif2 = listOf(64 to 0, 65 to 240, 69 to 480, 67 to 960)
+    private fun motifNotes(m: List<Pair<Int, Int>>) = m.map { (pp, t) -> note(pp, t, if (t == 960) 480 else 240) }
+    /** Mirror [m]'s scale-step moves, starting from [start]. */
+    private fun mirror(m: List<Int>, start: Int) = m.zipWithNext { a, b -> C_SCALE.indexOf(b % 12) - C_SCALE.indexOf(a % 12) + 7 * (b / 12 - a / 12) }
+        .runningFold(start) { acc, d -> diatonic(acc, -d) }
+    private fun invertCheck(p: Project, m: List<Pair<Int, Int>>, start: Int, okHead: String, okBody: String): Verdict {
+        val want = mirror(m.map { it.first }, start)
+        val b2 = bar(p, LEAD, 1)
+        return when { rel(b2, 1) != m.map { it.second } -> no("Same rhythm", "Bar 2 needs bar 1's rhythm: beat 1, the \"and\" after beat 1, beat 2 and beat 3.")
+            b2.map { it.pitch } != want -> no("Mirror the moves", "Bar 2 should be ${want.joinToString(" ") { Pitch.flName(it) }}.")
+            else -> ok(okHead, okBody) }
+    }
     private val l16 = listOf(
-        Lesson("dev.augment", 16, "Augmentation", "Same notes, every length doubled — the idea slows down.", 3, 96, 2,
+        Lesson("dev.augment", 16, "Stretch the idea", "Augment means make bigger. Same notes, but each one lasts twice as long.", 3, 96, 2,
             show = listOf(LEAD), rows = 59..79, scale = Scales.C_MAJOR,
             setup = { p -> p.set(LEAD, listOf(note(60, 0, 240), note(64, 240, 240), note(67, 480, 480))) },
-            steps = listOf(LessonStep("Bar 1 is a quick motif. Write it again in bar 2 with every note twice as long.", "Bar 2: C, E, G with lengths 1, 1 and 2 beats.", Win.ROLL, LEAD,
-                hint = "Bar 2 starts at 1920. C for 1 beat, E for 1 beat, G for 2 beats.",
+            steps = listOf(LessonStep("Bar 1 has a quick little idea. Play it again in bar 2, with every note twice as long.", "Bar 2: C for 1 beat, E for 1 beat, G for 2 beats.", Win.ROLL, LEAD,
+                hint = "Bar 2: C5 on beat 1, E5 on beat 2, G5 on beat 3. Hold G5 to the end of the bar.",
+                hintGhosts = listOf(Ghost(LEAD, pitch = 60, tick = 1920, lengthTicks = 480), Ghost(LEAD, pitch = 64, tick = 2400, lengthTicks = 480), Ghost(LEAD, pitch = 67, tick = 2880, lengthTicks = 960)),
                 check = { p, _ ->
                     val b2 = bar(p, LEAD, 1).map { Triple(it.pitch, it.startTick - TICKS_PER_BAR, it.durationTicks) }
-                    if (b2 == listOf(Triple(60, 0, 480), Triple(64, 480, 480), Triple(67, 960, 960))) ok("Augmented!", "Slowing a motif makes it sound grand — great for endings.")
-                    else no("Double everything", "Bar 2 should be C (1 beat), E (1 beat), G (2 beats), back to back from beat 1.")
+                    if (b2 == listOf(Triple(60, 0, 480), Triple(64, 480, 480), Triple(67, 960, 960))) ok("Stretched!", "A slow version of an idea sounds big and grand. Great for endings.")
+                    else no("Double every length", "Bar 2 needs C5 (1 beat), E5 (1 beat), then G5 (2 beats), from beat 1.")
                 })), flTip = "In FL, select notes and use Tools → Scale levels/length (Alt+X) or just drag each end."),
-        Lesson("dev.invert", 16, "Inversion", "Mirror the motif: where it went up, go down by the same number of scale steps.", 4, 96, 2,
-            show = listOf(LEAD), rows = 55..79, scale = Scales.C_MAJOR,
-            setup = { p -> p.set(LEAD, motif.map { (pp, t) -> note(pp, t, if (t == 960) 480 else 240) }) },
-            steps = listOf(LessonStep("The motif goes C up to E, down to D, up to G. Start bar 2 on G and mirror each move: down, up, down — same number of shaded rows.", "Bar 2: the motif upside-down, starting on G, same rhythm.", Win.ROLL, LEAD,
-                hint = "Moves were +2, −1, +3 scale steps. Mirrored from G: −2 (E), +1 (F), −3 (C).",
-                check = { p, _ ->
-                    val want = motif.map { it.first }.zipWithNext { a, b -> C_SCALE.indexOf(b % 12) - C_SCALE.indexOf(a % 12) + 7 * (b / 12 - a / 12) }
-                        .runningFold(67) { acc, d -> diatonic(acc, -d) }
-                    val b2 = bar(p, LEAD, 1)
-                    when { rel(b2, 1) != motif.map { it.second } -> no("Same rhythm", "Bar 2 needs the motif's rhythm.")
-                        b2.map { it.pitch } != want -> no("Mirror the moves", "Bar 2 should be ${want.joinToString(" ") { Pitch.flName(it) }}.")
-                        else -> ok("Inverted!", "Bach loved this trick — the same idea, flipped, still belongs.") }
-                })), flTip = "FL's Piano roll Tools menu has a Flip function; doing it by hand teaches what it means."),
-        Lesson("dev.fragment", 16, "Fragmentation", "Take just a piece of the motif and sequence it upward.", 4, 96, 2,
+        Lesson("dev.fragment", 16, "Chop and climb", "Take a small piece of the idea and repeat it, one step higher each time.", 4, 96, 2,
             show = listOf(LEAD), rows = 59..79, scale = Scales.C_MAJOR, snap = Snap.HALF,
             setup = { p -> p.set(LEAD, listOf(note(60, 0, 240), note(62, 240, 240), note(64, 480, 480), note(67, 960, 480))) },
-            steps = listOf(LessonStep("Take only the first two notes (C D). In bar 2 play them three times, each pair one shaded row higher: D E, E F, F G.", "Bar 2: D E · E F · F G on beats 1, 2, 3 (half-beat notes).", Win.ROLL, LEAD,
-                hint = "Each pair is two half-beat notes starting on a beat.",
+            steps = listOf(LessonStep("Take just the first two notes, C D. In bar 2, play that pair three times, one shaded row higher each time.", "Bar 2: D E, then E F, then F G, on beats 1, 2 and 3.", Win.ROLL, LEAD,
+                hint = "Each pair is two ½-beat notes that start on a beat. Beat 1: D E. Beat 2: E F. Beat 3: F G.",
+                hintGhosts = listOf(62 to 0, 64 to 240, 64 to 480, 65 to 720, 65 to 960, 67 to 1200).map { (pp, t) -> Ghost(LEAD, pitch = pp, tick = TICKS_PER_BAR + t, lengthTicks = 240) },
                 check = { p, _ ->
                     val want = listOf(62 to 0, 64 to 240, 64 to 480, 65 to 720, 65 to 960, 67 to 1200)
                     val b2 = bar(p, LEAD, 1).map { it.pitch to it.startTick - TICKS_PER_BAR }
-                    if (b2 == want) ok("Developed!", "A fragment climbing in steps builds energy — a classic pre-chorus move.") else no("Climb in pairs", "Bar 2: D E, then E F, then F G, each pair starting on a beat.")
+                    if (b2 == want) ok("Climbing!", "A small piece climbing step by step builds excitement before a big moment.")
+                    else no("Climb in pairs", "Bar 2 should be D E, E F, F G. Each pair starts on a beat: 1, 2 and 3.")
                 })), flTip = "Duplicate (Ctrl+B) then nudge with Shift+↑ in FL to build sequences fast."),
-        Lesson("dev.climax", 16, "Jam: place the climax", "A melody's single highest note works best about two-thirds through.", 4, 96, 4,
+        Lesson("dev.invert", 16, "Flip it upside down", "Mirror the idea: where it went up, go down by the same number of shaded rows.", 4, 96, 2,
+            show = listOf(LEAD), rows = 55..79, scale = Scales.C_MAJOR, snap = Snap.HALF,
+            setup = { p -> p.set(LEAD, motifNotes(motif)) },
+            steps = listOf(
+                LessonStep("This flip is different from flipping a chord. Picture the tune in a mirror: up becomes down, down becomes up.", "Bar 2: the idea upside down, starting on G. Follow the outlines.", Win.ROLL, LEAD,
+                    guides = outline(LEAD, listOf(Triple(67, 1920, 240), Triple(64, 2160, 240), Triple(65, 2400, 240), Triple(60, 2880, 480))),
+                    hint = "The idea goes up 2 rows, down 1, up 3. Flipped, starting on G: down 2 (E), up 1 (F), down 3 (C).",
+                    check = { p, _ -> invertCheck(p, motif, 67, "Flipped!", "Same rhythm, moves turned upside down.") }),
+                LessonStep("A new idea! Flip this one on your own. Start bar 2 on the same note, E.", "Bar 2: flip the new idea, starting on E5, same rhythm.", Win.ROLL, LEAD,
+                    setup = { p -> p.set(LEAD, motifNotes(motif2)) },
+                    hint = "This idea goes up 1 row, up 2, down 1. Flipped from E: down 1, down 2, up 1.",
+                    check = { p, _ -> invertCheck(p, motif2, 64, "Flipped on your own!", "Bach loved this trick. The flipped idea still sounds like it belongs.") }),
+            ), flTip = "FL's Piano roll Tools menu has a Flip function; doing it by hand teaches what it means."),
+        Lesson("dev.climax", 16, "Jam: find the peak", "A tune's one highest note sounds best about two thirds of the way through.", 4, 96, 4,
             show = listOf(CHORDS, LEAD), locked = setOf(CHORDS), ghost = setOf(CHORDS), rows = 59..84, scale = Scales.C_MAJOR, snap = Snap.HALF, jam = true,
             setup = { p -> chords(p, listOf(listOf(60, 64, 67), listOf(57, 60, 64), listOf(53, 57, 60), listOf(55, 59, 62))) },
-            steps = listOf(LessonStep("Write 10+ notes over 4 bars. Make ONE highest note, and put it in bar 3. End on a note of the G chord or C.", "10+ notes, single peak in bar 3.", Win.ROLL, LEAD,
-                hint = "Climb gradually, peak once in bar 3, then come down.",
+            steps = listOf(LessonStep("Write 10 or more notes over 4 bars. Climb slowly, reach just one highest note in bar 3, then come down.", "10+ notes. Just one highest note, and it's in bar 3.", Win.ROLL, LEAD,
+                hint = "Climb a little in bars 1 and 2. Reach your top note in bar 3. Then step back down to the end.",
                 check = chk@{ p, _ ->
                     val ns = lead(p)
-                    if (ns.size < 10) return@chk no("More notes", "Write at least 10 notes.")
+                    if (ns.size < 10) return@chk no("More notes", "Write at least 10 notes. You have ${ns.size}.")
                     val top = ns.maxOf { it.pitch }
-                    when { ns.count { it.pitch == top } > 1 -> no("One peak", "Only one note should be the highest.")
-                        ns.first { it.pitch == top }.startTick / TICKS_PER_BAR != 2 -> no("Peak in bar 3", "Put the highest note in bar 3.")
-                        ns.any { it.pitch % 12 !in Scales.C_MAJOR } -> no("Stay in key", "Use the shaded rows.")
-                        else -> ok("Level 16 complete!", "A well-placed climax is what makes a melody feel like a journey.") }
+                    val peakBar = ns.first { it.pitch == top }.startTick / TICKS_PER_BAR
+                    when { ns.count { it.pitch == top } > 1 -> no("Just one peak", "${ns.count { it.pitch == top }} notes share the top row, ${Pitch.flName(top)}. Only one note should be the highest.")
+                        peakBar != 2 -> no("Peak in bar 3", "Your highest note, ${Pitch.flName(top)}, is in bar ${peakBar + 1}. Move the peak to bar 3.")
+                        ns.any { it.pitch % 12 !in Scales.C_MAJOR } -> no("Stay in key", "Use only the shaded rows.")
+                        else -> ok("Level 16 complete!", "A peak in the right place makes a tune feel like a journey.") }
                 })), flTip = "Zoom out in FL to see the contour — the peak should stand out."),
     )
 
-    // ---------------- Level 17 · Phrases and form ----------------
+    // ---------------- Level 17 · Shaping a song ----------------
     private val l17 = listOf(
-        Lesson("form.period", 17, "The 8-bar period", "Question (4 bars, ends open) + answer (4 bars, ends home).", 6, 96, 8,
-            show = listOf(CHORDS, LEAD), locked = setOf(CHORDS), ghost = setOf(CHORDS), rows = 59..84, scale = Scales.C_MAJOR, snap = Snap.HALF,
-            setup = { p -> chords(p, listOf(listOf(60, 64, 67), listOf(53, 57, 60), listOf(55, 59, 62), listOf(55, 59, 62), listOf(60, 64, 67), listOf(53, 57, 60), listOf(55, 59, 62), listOf(60, 64, 67))) },
-            steps = listOf(LessonStep("Bars 1–4 ask: end bar 4 on G, B or D. Bars 5–8 answer: start like bar 1 and end on C in bar 8.", "Write an 8-bar question-and-answer melody.", Win.ROLL, LEAD,
-                hint = "Copy bar 1's rhythm into bar 5. Finish bar 4 on a G-chord note and bar 8 on C.",
-                check = chk@{ p, _ ->
-                    val q = lead(p).filter { it.startTick < 4 * TICKS_PER_BAR }; val a = lead(p).filter { it.startTick >= 4 * TICKS_PER_BAR }
-                    when { q.size < 4 || a.size < 4 -> no("Both halves", "Write at least 4 notes in bars 1–4 and in bars 5–8.")
-                        q.last().pitch % 12 !in setOf(7, 11, 2) -> no("Leave the question open", "End bar 4 on G, B or D.")
-                        a.last().pitch % 12 != 0 || a.last().startTick < 7 * TICKS_PER_BAR -> no("Answer at home", "End bar 8 on C.")
-                        rel(bar(p, LEAD, 0), 0).toSet() != rel(bar(p, LEAD, 4), 4).toSet() -> no("Echo the start", "Bar 5 should have the same rhythm as bar 1.")
-                        lead(p).any { it.pitch % 12 !in Scales.C_MAJOR } -> no("Stay in key", "Use the shaded rows.")
-                        else -> ok("A real period!", "This 8-bar shape is the backbone of folk, pop and classical tunes.") }
-                })), flTip = "In FL, make bars 1–4 and copy them to 5–8 (Ctrl+B), then change only the ending."),
-        Lesson("form.sentence", 17, "The sentence", "Idea, idea again, then a busier continuation that ends.", 5, 96, 4,
+        Lesson("form.sentence", 17, "The musical sentence", "Say an idea, say it again a bit different, then keep going to an ending.", 5, 96, 4,
             show = listOf(LEAD), rows = 59..84, scale = Scales.C_MAJOR, snap = Snap.HALF,
-            steps = listOf(LessonStep("Bar 1: a short idea. Bar 2: same rhythm, different notes. Bars 3–4: more notes, moving to an ending on C.", "Write a 4-bar sentence.", Win.ROLL, LEAD,
-                hint = "Bar 2 copies bar 1's rhythm. Bars 3–4 should have at least as many notes as bars 1–2.",
+            steps = listOf(LessonStep("Bar 1: a short idea. Bar 2: the same rhythm with new notes. Bars 3 and 4: more notes that end on C.", "Write a 4-bar sentence that ends on C.", Win.ROLL, LEAD,
+                hint = "Copy bar 1 into bar 2, then move a note up or down. Bars 3 and 4 need at least as many notes as bars 1 and 2.",
                 check = chk@{ p, _ ->
                     val b1 = bar(p, LEAD, 0); val b2 = bar(p, LEAD, 1)
-                    when { b1.size < 2 -> no("An idea first", "Put 2+ notes in bar 1.")
-                        rel(b1, 0) != rel(b2, 1) -> no("Repeat the rhythm", "Bar 2 needs bar 1's rhythm.")
-                        b1.map { it.pitch } == b2.map { it.pitch } -> no("Vary it", "Change at least one pitch in bar 2.")
-                        bar(p, LEAD, 2).size + bar(p, LEAD, 3).size < b1.size + b2.size -> no("Keep going", "Bars 3–4 should be busier than bars 1–2.")
-                        lead(p).last().pitch % 12 != 0 -> no("End home", "Finish on C.")
-                        lead(p).any { it.pitch % 12 !in Scales.C_MAJOR } -> no("Stay in key", "Use the shaded rows.")
-                        else -> ok("A sentence!", "Idea, repeat, continue, end — Beethoven used this shape constantly.") }
+                    when { b1.size < 2 -> no("An idea first", "Put 2 or more notes in bar 1.")
+                        rel(b1, 0) != rel(b2, 1) -> no("Repeat the rhythm", "Bar 2 needs exactly the same rhythm as bar 1.")
+                        b1.map { it.pitch } == b2.map { it.pitch } -> no("Change a note", "Bar 2 is an exact copy. Move at least one of its notes up or down.")
+                        bar(p, LEAD, 2).size + bar(p, LEAD, 3).size < b1.size + b2.size -> no("Keep going", "Bars 3 and 4 need at least ${b1.size + b2.size} notes, as many as bars 1 and 2.")
+                        lead(p).last().pitch % 12 != 0 -> no("End home", "Make your last note a C.")
+                        lead(p).any { it.pitch % 12 !in Scales.C_MAJOR } -> no("Stay in key", "Use only the shaded rows.")
+                        else -> ok("A sentence!", "Idea, idea again, then onward to the end. Beethoven used this shape all the time.") }
                 })), flTip = "Many FL toplines follow this: two short calls, then a longer line."),
-        Lesson("form.verse-chorus", 17, "Verse vs chorus", "The chorus sits higher and repeats its rhythm.", 5, 96, 4,
+        Lesson("form.period", 17, "8-bar question and answer", "A 4-bar question that ends open, then a 4-bar answer that ends at home.", 6, 96, 8,
+            show = listOf(CHORDS, LEAD), locked = setOf(CHORDS), ghost = setOf(CHORDS), rows = 59..84, scale = Scales.C_MAJOR, snap = Snap.HALF,
+            setup = { p -> chords(p, listOf(listOf(60, 64, 67), listOf(53, 57, 60), listOf(55, 59, 62), listOf(55, 59, 62), listOf(60, 64, 67), listOf(53, 57, 60), listOf(55, 59, 62), listOf(60, 64, 67))) },
+            steps = listOf(
+                LessonStep("Remember question and answer? Now each part is 4 bars long. First, the question in bars 1 to 4.", "Bars 1 to 4: write 4+ notes. End bar 4 on G, B or D.", Win.ROLL, LEAD,
+                    hint = "Bar 4 is a G chord. End there on G, B or D, so it sounds like a question.",
+                    check = chk@{ p, _ ->
+                        val q = lead(p).filter { it.startTick < 4 * TICKS_PER_BAR }
+                        when { q.size < 4 -> no("More notes", "Write at least 4 notes in bars 1 to 4.")
+                            q.last().pitch % 12 !in setOf(7, 11, 2) -> no("Leave it open", "End bars 1 to 4 on G, B or D, not on ${Pitch.pcName(q.last().pitch % 12)}.")
+                            q.any { it.pitch % 12 !in Scales.C_MAJOR } -> no("Stay in key", "Use only the shaded rows.")
+                            else -> ok("Good question!", "It sounds open, like it's waiting. Now let's answer it.") }
+                    }),
+                LessonStep("Now the answer, in bars 5 to 8. Start bar 5 with bar 1's rhythm, and land on C at the end.", "Bars 5 to 8: 4+ notes. Bar 5 copies bar 1's rhythm. End on C in bar 8.", Win.ROLL, LEAD,
+                    hint = "Copy bar 1 into bar 5, then change the notes after it. Your last note goes in bar 8, and it's a C.",
+                    check = chk@{ p, _ ->
+                        val q = lead(p).filter { it.startTick < 4 * TICKS_PER_BAR }; val a = lead(p).filter { it.startTick >= 4 * TICKS_PER_BAR }
+                        when { q.size < 4 || a.size < 4 -> no("Both halves", "Write at least 4 notes in bars 1 to 4, and 4 in bars 5 to 8.")
+                            q.last().pitch % 12 !in setOf(7, 11, 2) -> no("Leave the question open", "End bar 4 on G, B or D.")
+                            a.last().pitch % 12 != 0 || a.last().startTick < 7 * TICKS_PER_BAR -> no("Answer at home", "Your last note should be a C, in bar 8.")
+                            rel(bar(p, LEAD, 0), 0).toSet() != rel(bar(p, LEAD, 4), 4).toSet() -> no("Echo the start", "Bar 5 should use the same rhythm as bar 1.")
+                            lead(p).any { it.pitch % 12 !in Scales.C_MAJOR } -> no("Stay in key", "Use only the shaded rows.")
+                            else -> ok("A real 8-bar tune!", "This question-and-answer shape is in folk, pop and classical tunes.") }
+                    }),
+            ), flTip = "In FL, make bars 1–4 and copy them to 5–8 (Ctrl+B), then change only the ending."),
+        Lesson("form.verse-chorus", 17, "Verse and chorus", "The chorus sits higher than the verse and repeats its rhythm.", 5, 96, 4,
             show = listOf(LEAD), rows = 55..84, scale = Scales.C_MAJOR, snap = Snap.HALF,
-            steps = listOf(LessonStep("Bars 1–2 are the verse: keep it low (G5 and below). Bars 3–4 are the chorus: higher, and bar 4 repeats bar 3's rhythm.", "Low verse, higher repeated chorus.", Win.ROLL, LEAD,
-                hint = "Verse notes ≤ G5. Chorus average at least 4 semitones higher.",
+            steps = listOf(LessonStep("Bars 1 and 2 are the verse: keep it low. Bars 3 and 4 are the chorus: go higher, and repeat a rhythm.", "Low verse in bars 1 and 2. Higher chorus in bars 3 and 4, with bar 4 copying bar 3's rhythm.", Win.ROLL, LEAD,
+                hint = "Verse: G5 and below. Chorus: try C6 and above. Copy bar 3 into bar 4, then change notes if you like.",
                 check = chk@{ p, _ ->
                     val v = lead(p).filter { it.startTick < 2 * TICKS_PER_BAR }; val c = lead(p).filter { it.startTick >= 2 * TICKS_PER_BAR }
-                    if (v.size < 3 || c.size < 3) return@chk no("Both parts", "Write 3+ notes in the verse and in the chorus.")
-                    when { v.any { it.pitch > 67 } -> no("Verse lower", "Keep the verse at G5 or lower.")
-                        c.map { it.pitch }.average() < v.map { it.pitch }.average() + 4 -> no("Lift the chorus", "The chorus should sit clearly higher.")
-                        rel(bar(p, LEAD, 2), 2) != rel(bar(p, LEAD, 3), 3) -> no("Repeat the chorus rhythm", "Bar 4 should use bar 3's rhythm.")
-                        else -> ok("Level 17 complete!", "Lower verse, higher catchy chorus — the shape of almost every hit.") }
+                    if (v.size < 3 || c.size < 3) return@chk no("Both parts", "Write 3 or more notes in the verse, and 3 or more in the chorus.")
+                    when { v.any { it.pitch > 67 } -> no("Verse lower", "Keep every verse note at G5 or lower.")
+                        c.map { it.pitch }.average() < v.map { it.pitch }.average() + 4 -> no("Lift the chorus", "The chorus should sit clearly higher. Try notes from C6 up.")
+                        rel(bar(p, LEAD, 2), 2) != rel(bar(p, LEAD, 3), 3) -> no("Repeat the chorus rhythm", "Bar 4 should use the same rhythm as bar 3.")
+                        else -> ok("Level 17 complete!", "A low verse and a high, catchy chorus. That's the shape of most hit songs.") }
                 })), flTip = "In FL, put the verse and chorus in different Patterns and arrange them in the Playlist."),
     )
 
@@ -356,63 +452,63 @@ object TheoryCurriculum {
     private val tune = listOf(64 to 0, 62 to 480, 60 to 960, 62 to 1440, 67 to 1920, 65 to 2400, 64 to 2880, 62 to 3360, 60 to 3840, 64 to 4320, 69 to 4800, 67 to 5280, 67 to 5760)
     private val diatonicTriads = listOf(setOf(0, 4, 7), setOf(2, 5, 9), setOf(4, 7, 11), setOf(5, 9, 0), setOf(7, 11, 2), setOf(9, 0, 4))
     private val l18 = listOf(
-        Lesson("song.harmonize", 18, "Harmonise a melody", "Choose chords that contain the melody's downbeat note.", 6, 90, 4,
+        Lesson("song.harmonize", 18, "Find chords for a tune", "Pick a chord that has the tune's beat 1 note inside it.", 6, 90, 4,
             show = listOf(LEAD, CHORDS), locked = setOf(LEAD), ghost = setOf(LEAD), rows = 48..79,
             setup = { p -> p.set(LEAD, tune.map { (pp, t) -> note(pp, t, 480) }) },
-            steps = listOf(LessonStep("The melody is given. For each bar, build a C-major-key chord on beat 1 that contains the melody note on beat 1.", "One chord per bar that fits the melody.", Win.ROLL, CHORDS,
-                hint = "Bar 1 starts on E: C (C E G) or Am (A C E) both fit. Bar 2 starts on G: C, Em or G.",
+            steps = listOf(LessonStep("The tune is ready. Give each bar a chord on beat 1. The chord must contain the tune's note on beat 1.", "One chord per bar, on beat 1, that fits the tune.", Win.ROLL, CHORDS,
+                hint = "Bar 1 starts on E: C, Em or Am. Bar 2 starts on G: C, Em or G. Bar 3 starts on C: C, F or Am. Bar 4 starts on G: C, Em or G.",
                 check = chk@{ p, _ ->
                     for (b in 0..3) {
                         val m = lead(p).first { it.startTick == b * TICKS_PER_BAR }.pitch % 12
                         val c = notes(p, CHORDS).filter { it.startTick == b * TICKS_PER_BAR }.map { it.pitch % 12 }.toSet()
-                        if (c.size < 3) return@chk no("Bar ${b + 1}", "Build a 3-note chord on beat 1 of bar ${b + 1}.")
+                        if (c.size < 3) return@chk no("Bar ${b + 1}: add a chord", "Build a 3-note chord on beat 1 of bar ${b + 1}.")
                         if (c !in diatonicTriads) return@chk no("Bar ${b + 1}: stay in key", "Use a chord from C major: C, Dm, Em, F, G or Am.")
-                        if (m !in c) return@chk no("Bar ${b + 1}: include the tune", "The melody plays ${Pitch.pcName(m)} here — pick a chord that contains it.")
+                        if (m !in c) return@chk no("Bar ${b + 1}: include the tune", "The tune plays ${Pitch.pcName(m)} on beat 1 here. Pick a chord that has ${Pitch.pcName(m)} in it.")
                     }
-                    ok("Harmonised!", "That's how songwriters find chords for a melody they hummed.")
+                    ok("Harmonised!", "That's how songwriters find chords for a tune they hummed.")
                 })), flTip = "In FL, put the melody on one channel, turn on ghost channels, and try chords under it."),
-        Lesson("song.hook", 18, "Jam: an 8-bar hook", "Repeat, vary, climb, resolve — over C–G–Am–F twice.", 8, 100, 8,
+        Lesson("song.hook", 18, "Jam: an 8-bar hook", "Repeat, change, climb and come home, over C G Am F twice.", 8, 100, 8,
             show = listOf(CHORDS, LEAD), locked = setOf(CHORDS), ghost = setOf(CHORDS), rows = 59..84, snap = Snap.HALF, jam = true,
             setup = { p -> chords(p, List(8) { listOf(listOf(60, 64, 67), listOf(55, 59, 62), listOf(57, 60, 64), listOf(53, 57, 60))[it % 4] }) },
-            steps = listOf(LessonStep("Bars 5–8 should echo bars 1–4 but change something; land chord tones on beats 1 and 3; peak in the second half; end on C.", "Write an 8-bar hook.", Win.ROLL, LEAD,
-                hint = "Write 4 bars, Duplicate them, then raise or change the second half's ending.",
+            steps = listOf(LessonStep("Bars 5 to 8 echo bars 1 to 4 but change something. Use chord notes on beats 1 and 3. Peak late, end on C.", "Write an 8-bar hook of 10+ notes that ends on C.", Win.ROLL, LEAD,
+                hint = "Write 4 bars. Select them and tap Copy →. Then make the copy's ending higher or different.",
                 check = chk@{ p, _ ->
                     val ns = lead(p)
-                    if (ns.size < 10) return@chk no("More notes", "Write at least 10 notes.")
+                    if (ns.size < 10) return@chk no("More notes", "Write at least 10 notes. You have ${ns.size}.")
                     val first = ns.filter { it.startTick < 4 * TICKS_PER_BAR }; val second = ns.filter { it.startTick >= 4 * TICKS_PER_BAR }
                     val strong = ns.filter { it.startTick % TICKS_PER_BAR in setOf(0, 960) }
                     val ct = strong.count { n -> n.pitch % 12 in notes(p, CHORDS).filter { it.startTick == n.startTick / TICKS_PER_BAR * TICKS_PER_BAR }.map { it.pitch % 12 } }
-                    when { first.isEmpty() || second.isEmpty() -> no("Both halves", "Write in bars 1–4 and 5–8.")
-                        rel(first, 0).toSet().intersect(second.map { it.startTick - 4 * TICKS_PER_BAR }.toSet()).size.toFloat() / maxOf(1, rel(first, 0).size) < 0.6f -> no("Echo the first half", "Bars 5–8 should reuse most of bars 1–4's rhythm.")
-                        first.map { it.pitch } == second.map { it.pitch } -> no("Change something", "Vary the second half.")
-                        strong.isNotEmpty() && ct.toFloat() / strong.size < 0.75f -> no("Lean on the chords", "Notes on beats 1 and 3 should be chord tones.")
-                        second.maxOf { it.pitch } < first.maxOf { it.pitch } -> no("Lift the second half", "Put the highest note in bars 5–8.")
-                        ns.last().pitch % 12 != 0 -> no("Resolve", "End on C.")
-                        else -> ok("That's a hook!", "Repetition, variation and a late peak — the recipe behind most catchy toplines.") }
+                    when { first.isEmpty() || second.isEmpty() -> no("Both halves", "Write notes in bars 1 to 4 and in bars 5 to 8.")
+                        rel(first, 0).toSet().intersect(second.map { it.startTick - 4 * TICKS_PER_BAR }.toSet()).size.toFloat() / maxOf(1, rel(first, 0).size) < 0.6f -> no("Echo the first half", "Bars 5 to 8 should reuse most of the rhythm of bars 1 to 4.")
+                        first.map { it.pitch } == second.map { it.pitch } -> no("Change something", "Bars 5 to 8 are an exact copy. Change a few notes.")
+                        strong.isNotEmpty() && ct.toFloat() / strong.size < 0.75f -> no("Lean on the chords", "Notes on beats 1 and 3 should be chord notes. Check the outlines.")
+                        second.maxOf { it.pitch } < first.maxOf { it.pitch } -> no("Lift the second half", "Put your highest note in bars 5 to 8.")
+                        ns.last().pitch % 12 != 0 -> no("Resolve", "Make your last note a C.")
+                        else -> ok("That's a hook!", "Repeat, change, and a late peak. That's the recipe behind catchy songs.") }
                 })), flTip = "Export it as MIDI and drop it on a lead synth in FL."),
-        Lesson("song.final", 18, "Final song: melody + harmony", "Everything: chords, a hook, and a harmony line under it.", 10, 96, 4,
+        Lesson("song.final", 18, "Final song: tune and harmony", "Everything together: chords, your tune, and a harmony line under it.", 10, 96, 4,
             show = listOf(CHORDS, LEAD, LEAD2), locked = setOf(CHORDS), ghost = setOf(CHORDS, LEAD), rows = 48..84, scale = Scales.C_MAJOR, snap = Snap.HALF, jam = true,
             setup = { p -> chords(p, listOf(listOf(60, 64, 67), listOf(57, 60, 64), listOf(53, 57, 60), listOf(55, 59, 62))) },
             steps = listOf(
-                LessonStep("Write your 4-bar melody on Lead: chord tones on beats 1 and 3, a rest somewhere, end on a G, B or D (we'll loop it).", "Write the lead melody.", Win.ROLL, LEAD,
-                    hint = "Bars: C – Am – F – G.",
+                LessonStep("Write your 4-bar tune on Lead. Use chord notes on beats 1 and 3, and leave a little gap somewhere.", "Write a tune of 8+ notes on Lead.", Win.ROLL, LEAD,
+                    hint = "The chords are C, Am, F, G. Try ending on G, B or D, so the loop rolls around again.",
                     check = chk@{ p, _ ->
                         val ns = lead(p)
                         val strong = ns.filter { it.startTick % TICKS_PER_BAR in setOf(0, 960) }
                         val ct = strong.count { n -> n.pitch % 12 in notes(p, CHORDS).filter { it.startTick == n.startTick / TICKS_PER_BAR * TICKS_PER_BAR }.map { it.pitch % 12 } }
-                        when { ns.size < 8 -> no("More notes", "Write at least 8 notes.")
-                            strong.isEmpty() || ct.toFloat() / strong.size < 0.75f -> no("Lean on the chords", "Beats 1 and 3 should mostly be chord tones.")
-                            ns.zipWithNext().none { (a, b) -> b.startTick - (a.startTick + a.durationTicks) >= 240 } -> no("Breathe", "Leave a half-beat rest somewhere.")
-                            ns.any { it.pitch % 12 !in Scales.C_MAJOR } -> no("Stay in key", "Use the shaded rows.")
-                            else -> ok("Melody done!", "Now give it a partner.") }
+                        when { ns.size < 8 -> no("More notes", "Write at least 8 notes. You have ${ns.size}.")
+                            strong.isEmpty() || ct.toFloat() / strong.size < 0.75f -> no("Lean on the chords", "Notes on beats 1 and 3 should mostly be chord notes.")
+                            ns.zipWithNext().none { (a, b) -> b.startTick - (a.startTick + a.durationTicks) >= 240 } -> no("Breathe", "Leave a gap of half a beat or more between two notes.")
+                            ns.any { it.pitch % 12 !in Scales.C_MAJOR } -> no("Stay in key", "Use only the shaded rows.")
+                            else -> ok("Tune done!", "Now give it a partner.") }
                     }),
-                LessonStep("Now Lead 2: harmonise at least 6 of your melody notes a third or sixth below, at the same moments.", "Harmony on 6+ notes: 3–4 or 8–9 semitones below.", Win.ROLL, LEAD2,
-                    hint = "Two shaded rows down = a third. Five rows down = a sixth.",
+                LessonStep("Now Lead 2. Put a 3rd or 6th under 6 or more of your notes, at the same moments.", "Lead 2: a 3rd or 6th below 6 or more of your notes.", Win.ROLL, LEAD2,
+                    hint = "A 3rd is two shaded rows down. A 6th is five shaded rows down. Start each one with its Lead note.",
                     check = { p, _ ->
                         val pairs = notes(p, LEAD2).count { h -> lead(p).any { it.startTick == h.startTick && (it.pitch - h.pitch) in (setOf(3, 4, 8, 9)) } }
-                        when { pairs < 6 -> no("More harmony", "$pairs notes are harmonised. Aim for 6 or more, a third or sixth below.")
-                            notes(p, LEAD2).any { it.pitch % 12 !in Scales.C_MAJOR } -> no("Stay in key", "Use the shaded rows.")
-                            else -> ok("Course complete!", "Chords, a melody and a harmony line — you can write music. Export it and rebuild it in FL Studio.") }
+                        when { pairs < 6 -> no("More harmony", "$pairs of your notes have a 3rd or 6th under them. Aim for 6 or more.")
+                            notes(p, LEAD2).any { it.pitch % 12 !in Scales.C_MAJOR } -> no("Stay in key", "Use only the shaded rows.")
+                            else -> ok("Course complete!", "Chords, a tune and a harmony line. You can write music! Export it and build it in FL Studio.") }
                     }),
             ), flTip = "In FL, put the harmony on a second channel with a softer sound, and pan the two leads apart."),
     )

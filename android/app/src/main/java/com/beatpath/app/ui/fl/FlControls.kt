@@ -1,5 +1,6 @@
 package com.beatpath.app.ui.fl
 
+import com.beatpath.app.ui.aero.flBox
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -163,7 +164,7 @@ fun FlChannelButton(name: String, tint: Color, selected: Boolean, modifier: Modi
 fun FlTransport(playing: Boolean, bpm: Int, onPlay: () -> Unit, onStop: () -> Unit, onTempo: () -> Unit, modifier: Modifier = Modifier, compact: Boolean = false) {
     val bw = if (compact) 40.dp else 46.dp
     Row(modifier.clip(RoundedCornerShape(10.dp)).background(Fl.Title).padding(5.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(Modifier.clip(RoundedCornerShape(8.dp)).background(Fl.Dark).border(1.dp, Fl.Edge, RoundedCornerShape(8.dp))) {
+        Row(Modifier.flBox(8.dp)) {
             Box(Modifier.size(bw, 40.dp).background(if (playing) Color(0xFF4A5A3A) else Color.Transparent).clickable(onClick = onPlay).semantics { contentDescription = if (playing) "Pause" else "Play" }, contentAlignment = Alignment.Center) {
                 Icon(Icons.Rounded.PlayArrow, null, tint = if (playing) Fl.Lime else Fl.Text, modifier = Modifier.size(24.dp))
             }

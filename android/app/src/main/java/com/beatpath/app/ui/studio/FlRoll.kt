@@ -1,5 +1,6 @@
 package com.beatpath.app.ui.studio
 
+import com.beatpath.app.ui.aero.flBox
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.DropdownMenu
@@ -115,7 +116,10 @@ fun FlRoll(
     var tool by remember { mutableStateOf(Tool.Draw) }
     var snap by remember(defaultSnap) { mutableStateOf(defaultSnap) }
     var selection by remember { mutableStateOf(setOf<Long>()) }
-    var lastLength by remember(defaultSnap) { mutableIntStateOf(maxOf(defaultSnap.ticks, if (channel.isDrum) 60 else TICKS_PER_BEAT)) }
+    // new notes copy the last length you set, but never start longer than the grid: on a step grid a new note is one step,
+    // so it can't cover the very next spot you want to tap
+    var lastLength by remember(defaultSnap) { mutableIntStateOf(if (channel.isDrum) 60 else defaultSnap.ticks.coerceAtMost(TICKS_PER_BEAT * 4)) }
+    LaunchedEffect(snap) { if (!channel.isDrum && lastLength > snap.ticks && snap.ticks < TICKS_PER_BEAT) lastLength = snap.ticks }
     var barsVisible by remember(pattern.bars, compact) { mutableIntStateOf(pattern.bars.coerceAtMost(if (compact) 4 else 2)) }
     var listMode by remember { mutableStateOf(false) }
     var showVel by remember(showVelocity) { mutableStateOf(showVelocity) }
@@ -136,7 +140,7 @@ fun FlRoll(
         val soundChip: @Composable () -> Unit = {
             if (soundName != null && soundChoices.isNotEmpty()) Box {
                 // instrument picker for this channel: same notes, different sound
-                Row(Modifier.clip(RoundedCornerShape(6.dp)).background(Fl.Dark).border(1.dp, Fl.Edge, RoundedCornerShape(6.dp)).clickable { soundMenu = true }
+                Row(Modifier.flBox(6.dp).clickable { soundMenu = true }
                     .padding(horizontal = 8.dp, vertical = padV).semantics { contentDescription = "Sound $soundName, tap to change" }, verticalAlignment = Alignment.CenterVertically) {
                     Text("♪ ", color = Fl.Lime, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     Text(soundName, color = Fl.Text, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.widthIn(max = 110.dp))
@@ -155,14 +159,14 @@ fun FlRoll(
                 (if (channelChoices.isEmpty() || channel.isDrum) listOf(channel) else channelChoices).forEach { k ->
                     val on = k == channel
                     Text(k.label, color = if (on) Fl.LimeDark else Fl.Text, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1,
-                        modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(if (on) Fl.Lime else Fl.Dark).clickable { if (!on) { onChannel(k); selection = emptySet() } }
+                        modifier = Modifier.flBox(6.dp, on = on, lime = true).clickable { if (!on) { onChannel(k); selection = emptySet() } }
                             .padding(horizontal = 10.dp, vertical = padV).semantics { contentDescription = "Edit ${k.label}${if (on) ", selected" else ""}" })
                 }
             }
         }
         val viewOptions: @Composable () -> Unit = {
             Row(
-                Modifier.clip(RoundedCornerShape(6.dp)).background(Fl.Dark)
+                Modifier.flBox(6.dp)
                     .combinedClickable(onLongClick = { onInfo("snap") }) {
                         val opts = if (channel.isDrum) listOf(Snap.STEP, Snap.HALF_STEP, Snap.TRIPLET) else listOf(Snap.BEAT, Snap.HALF, Snap.STEP, Snap.TRIPLET)
                         snap = opts[(opts.indexOf(snap) + 1).mod(opts.size)]
@@ -173,30 +177,28 @@ fun FlRoll(
                 Text(snap.label, color = Fl.Text, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
             if (!channel.isDrum && !listMode) Text("🌈", fontSize = 13.sp,
-                modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(if (NoteColors.rainbowRoll) Color(0xFF4A5A66) else Fl.Dark).clickable { NoteColors.setRainbow(!NoteColors.rainbowRoll) }
+                modifier = Modifier.flBox(6.dp, on = NoteColors.rainbowRoll).clickable { NoteColors.setRainbow(!NoteColors.rainbowRoll) }
                     .padding(horizontal = 8.dp, vertical = padV).semantics { contentDescription = if (NoteColors.rainbowRoll) "Rainbow note colors on, tap to turn off" else "Rainbow note colors off, tap to turn on" })
             if (!listMode) Text("Vel", color = if (showVel) Fl.Lime else Fl.Text, fontSize = 12.sp, fontWeight = FontWeight.Bold,
-                modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(Fl.Dark).clickable { showVel = !showVel }.padding(horizontal = 10.dp, vertical = padV)
+                modifier = Modifier.flBox(6.dp).clickable { showVel = !showVel }.padding(horizontal = 10.dp, vertical = padV)
                     .semantics { contentDescription = if (showVel) "Hide the velocity lane" else "Show the velocity lane" })
             Text(if (listMode) "Grid" else "List", color = if (listMode) Fl.Lime else Fl.Text, fontSize = 12.sp, fontWeight = FontWeight.Bold,
-                modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(Fl.Dark).clickable { listMode = !listMode }.padding(horizontal = 10.dp, vertical = padV)
+                modifier = Modifier.flBox(6.dp).clickable { listMode = !listMode }.padding(horizontal = 10.dp, vertical = padV)
                     .semantics { contentDescription = if (listMode) "Show the grid" else "Show notes as a list" })
             Text("?", color = Fl.Text, fontSize = 14.sp, fontWeight = FontWeight.Bold, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                modifier = Modifier.size(34.dp).clip(RoundedCornerShape(17.dp)).background(Fl.Dark).clickable { onInfo("roll") }.padding(top = 7.dp).semantics { contentDescription = "Where is this in FL?" })
+                modifier = Modifier.size(34.dp).flBox(17.dp).clickable { onInfo("roll") }.padding(top = 7.dp).semantics { contentDescription = "Where is this in FL?" })
         }
         val zoomButtons: @Composable () -> Unit = {
             if (pattern.bars > 1 && !listMode) {
-                Icon(Icons.Rounded.ZoomOut, "Show more bars", tint = if (barsVisible < pattern.bars) Fl.Text else Fl.Edge, modifier = Modifier.size(if (compact) 34.dp else 38.dp).clip(RoundedCornerShape(8.dp)).background(Fl.Dark).clickable { barsVisible = minOf(pattern.bars, barsVisible * 2) }.padding(7.dp))
-                Icon(Icons.Rounded.ZoomIn, "Show fewer bars", tint = if (barsVisible > 1) Fl.Text else Fl.Edge, modifier = Modifier.size(if (compact) 34.dp else 38.dp).clip(RoundedCornerShape(8.dp)).background(Fl.Dark).clickable { barsVisible = maxOf(1, barsVisible / 2) }.padding(7.dp))
+                Icon(Icons.Rounded.ZoomOut, "Show more bars", tint = if (barsVisible < pattern.bars) Fl.Text else Fl.Edge, modifier = Modifier.size(if (compact) 34.dp else 38.dp).flBox(8.dp).clickable { barsVisible = minOf(pattern.bars, barsVisible * 2) }.padding(7.dp))
+                Icon(Icons.Rounded.ZoomIn, "Show fewer bars", tint = if (barsVisible > 1) Fl.Text else Fl.Edge, modifier = Modifier.size(if (compact) 34.dp else 38.dp).flBox(8.dp).clickable { barsVisible = maxOf(1, barsVisible / 2) }.padding(7.dp))
             }
         }
         val toolButtons: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {
             Tool.entries.forEach { t ->
                 val on = tool == t
                 Row(
-                    Modifier.weight(1f).height(if (compact) 34.dp else 38.dp).clip(RoundedCornerShape(8.dp))
-                        .background(if (on) Fl.Deep else Fl.Dark)
-                        .border(1.5.dp, if (on) Fl.Lime else Fl.Edge, RoundedCornerShape(8.dp))
+                    Modifier.weight(1f).height(if (compact) 37.dp else 41.dp).flBox(8.dp, on = on)
                         .combinedClickable(onLongClick = { onInfo(t.info) }) { tool = t; if (t != Tool.Select) selection = emptySet() }
                         .semantics { contentDescription = "${t.label} tool, FL key ${t.key}${if (on) ", selected" else ""}" },
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center,
@@ -480,7 +482,7 @@ fun FlRoll(
 
 @Composable
 private fun SelChip(label: String, key: String, modifier: Modifier, onClick: () -> Unit) {
-    Column(modifier.height(42.dp).clip(RoundedCornerShape(6.dp)).background(Fl.Dark).border(1.dp, Color(0x55A9E34B), RoundedCornerShape(6.dp)).clickable(onClick = onClick)
+    Column(modifier.height(42.dp).flBox(6.dp).border(1.dp, Color(0x55A9E34B), RoundedCornerShape(6.dp)).clickable(onClick = onClick)
         .semantics { contentDescription = "$label ($key)" }, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         Text(label, color = Fl.Text, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
         Text(key, color = Fl.Lime, fontSize = 8.sp, maxLines = 1)

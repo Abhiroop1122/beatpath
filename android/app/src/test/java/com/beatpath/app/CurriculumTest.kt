@@ -25,9 +25,9 @@ class CurriculumTest {
     @Test fun idsUniqueAndLevelsCovered() {
         val ids = Curriculum.lessons.map { it.id }
         assertEquals(ids.size, ids.toSet().size)
-        assertEquals(18, Curriculum.levels.size)
+        assertEquals(22, Curriculum.levels.size)
         Curriculum.levels.forEach { lv -> assertTrue("level ${lv.number} empty", Curriculum.inLevel(lv.number).isNotEmpty()) }
-        assertEquals(76, Curriculum.lessons.size)
+        assertEquals(98, Curriculum.lessons.size)
     }
 
     @Test fun everyCheckRunsOnSetupWithoutCrashing() {

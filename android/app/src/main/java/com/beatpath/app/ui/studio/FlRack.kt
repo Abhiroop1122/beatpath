@@ -1,5 +1,6 @@
 package com.beatpath.app.ui.studio
 
+import com.beatpath.app.ui.aero.flBox
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.DropdownMenu
@@ -83,7 +84,7 @@ fun FlRack(
         }
         if (onKit != null) Box {
             // drum kit picker: same pattern, different drum sounds
-            Row(Modifier.height(30.dp).clip(RoundedCornerShape(6.dp)).background(Fl.Dark).border(1.dp, Fl.Edge, RoundedCornerShape(6.dp)).clickable { kitMenu = true }
+            Row(Modifier.height(30.dp).flBox(6.dp).clickable { kitMenu = true }
                 .padding(horizontal = 8.dp).semantics { contentDescription = "Drum kit ${kit.label}, tap to change" }, verticalAlignment = Alignment.CenterVertically) {
                 Text("Kit ", color = Fl.Text3, fontSize = 11.sp)
                 Text(kit.label, color = Fl.Lime, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
@@ -102,10 +103,10 @@ fun FlRack(
         }
         Spacer(Modifier.width(6.dp))
         Text("${pattern.steps}", color = Fl.Text2, fontSize = 13.sp,
-            modifier = Modifier.clip(RoundedCornerShape(5.dp)).background(Fl.Dark).border(1.dp, Fl.Edge, RoundedCornerShape(5.dp)).padding(horizontal = 8.dp, vertical = 3.dp))
+            modifier = Modifier.flBox(5.dp).padding(horizontal = 8.dp, vertical = 3.dp))
         Spacer(Modifier.width(8.dp))
         Text("?", color = Fl.Text, fontSize = 14.sp, fontWeight = FontWeight.Bold,
-            modifier = Modifier.size(26.dp).clip(RoundedCornerShape(13.dp)).background(Fl.Dark).clickable(onClick = onInfo).padding(top = 3.dp).semantics { contentDescription = "Where is this in FL?" },
+            modifier = Modifier.size(26.dp).flBox(13.dp).clickable(onClick = onInfo).padding(top = 3.dp).semantics { contentDescription = "Where is this in FL?" },
             textAlign = androidx.compose.ui.text.style.TextAlign.Center)
     }) {
         BoxWithConstraints(Modifier.fillMaxSize().background(Fl.Panel)) {
@@ -161,7 +162,7 @@ fun FlRack(
                         if (wide) {
                             FlKnob((ch.pan + 1f) / 2f, { onChannelPan(kind, it * 2f - 1f) }, Modifier.size(26.dp), bipolar = true, label = "${ch.name} pan")
                             FlKnob(ch.volume, { onChannelVolume(kind, it) }, Modifier.size(26.dp), label = "${ch.name} volume")
-                            Box(Modifier.size(34.dp, 30.dp).clip(RoundedCornerShape(6.dp)).background(Fl.Dark).border(1.dp, Fl.Edge, RoundedCornerShape(6.dp)), contentAlignment = Alignment.Center) {
+                            Box(Modifier.size(34.dp, 30.dp).flBox(6.dp), contentAlignment = Alignment.Center) {
                                 Text("${kind.ordinal + 1}", color = Fl.Text, fontSize = 15.sp)
                             }
                         }

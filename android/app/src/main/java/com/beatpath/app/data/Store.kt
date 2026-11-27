@@ -54,7 +54,8 @@ class Store(context: Context) {
     var reviews by mutableStateOf(loadPairs("reviews")); private set
 
     /** Course order: Music basics, the ear unit, then every Studio lesson. */
-    val order: List<String> = com.beatpath.app.lessons.Basics.ids + EarIds.all + Curriculum.lessons.map { it.id }
+    val order: List<String> = com.beatpath.app.lessons.Basics.ids + EarIds.all + Curriculum.lessons.filter { it.level <= 10 }.map { it.id } +
+        com.beatpath.app.lessons.EarTwo.ids + Curriculum.lessons.filter { it.level > 10 }.map { it.id }
 
     /** Display title for any lesson id. */
     fun titleOf(id: String): String = com.beatpath.app.lessons.Basics.byId(id)?.title ?: Curriculum.byId(id)?.title
@@ -67,6 +68,70 @@ class Store(context: Context) {
     /** Equipped item per slot (slot name → item id). */
     var equipped by mutableStateOf(Shop.Slot.entries.mapNotNull { sl -> prefs.getString("eq.${sl.name}", null)?.let { sl to it } }.toMap()); private set
     val balance: Int get() = (xp - spent).coerceAtLeast(0)
+
+    init {
+        // sky themes left the shop: give their XP back
+        val gone = mapOf("sky.sunset" to 300, "sky.dusk" to 450).filterKeys { it in owned }
+        if (gone.isNotEmpty()) {
+            spent = (spent - gone.values.sum()).coerceAtLeast(0); owned = owned - gone.keys
+            prefs.edit().putInt("spent", spent).putStringSet("owned", owned).remove("eq.SKY").apply()
+        }
+    }
+
+    // ---------------- daily quests, streak chests, mini games ----------------
+    private fun today() = LocalDate.now().toString()
+    fun count(m: Quests.Metric): Int = prefs.getInt("qd.${today()}.${m.name}", 0)
+    private fun bump(m: Quests.Metric, n: Int = 1) { if (n > 0) prefs.edit().putInt("qd.${today()}.${m.name}", count(m) + n).apply(); questTick++ }
+    /** Changes whenever quest progress moves, so screens showing quests recompose. */
+    var questTick by mutableStateOf(0); private set
+    fun questsToday(): List<Quests.Quest> = Quests.today(LocalDate.now().toEpochDay())
+    fun claimed(q: Quests.Quest): Boolean = q.id in prefs.getStringSet("qc.${today()}", emptySet())!!
+    fun questDone(q: Quests.Quest): Boolean = count(q.metric) >= q.target
+    /** Collect a finished quest's XP (once a day). */
+    fun claim(q: Quests.Quest): Int {
+        if (!questDone(q) || claimed(q)) return 0
+        prefs.edit().putStringSet("qc.${today()}", prefs.getStringSet("qc.${today()}", emptySet())!! + q.id).apply()
+        addXp(q.reward, countsToday = false); questTick++
+        return q.reward
+    }
+    /** The streak chest you can open right now (milestone day → XP), if any. */
+    fun chestReady(): Pair<Int, Int>? {
+        val st = streak(); if (st <= 0) return null
+        val start = streakStart(st)
+        val opened = prefs.getStringSet("chests", emptySet())!!
+        return Quests.chests.entries.filter { it.key <= st && "${it.key}@$start" !in opened }.maxByOrNull { it.key }?.toPair()
+    }
+    fun openChest(): Int {
+        val (day, reward) = chestReady() ?: return 0
+        val start = streakStart(streak())
+        // opening the biggest one also covers smaller milestones in the same streak
+        val keys = Quests.chests.keys.filter { it <= day }.map { "$it@$start" }
+        prefs.edit().putStringSet("chests", prefs.getStringSet("chests", emptySet())!! + keys).apply()
+        addXp(reward, countsToday = false); questTick++
+        return reward
+    }
+    /** First day of the current streak. The streak may end yesterday (today not practiced yet), so count back from its last day. */
+    private fun streakStart(st: Int): String {
+        val last = if (LocalDate.now().toString() in practiceDays) LocalDate.now() else LocalDate.now().minusDays(1)
+        return last.minusDays((st - 1).toLong()).toString()
+    }
+    private fun addXp(n: Int, countsToday: Boolean = true) {
+        xp += n; prefs.edit().putInt("xp", xp).apply()
+        if (countsToday) bump(Quests.Metric.XP, n)
+    }
+
+    var bests by mutableStateOf(loadPairs("bests").mapValues { it.value.first.toInt() }); private set
+    fun best(gameId: String): Int = bests[gameId] ?: 0
+    /** A finished mini game: 5 XP per star, +5 for a new best; counts toward quests and today's streak. */
+    fun recordGame(gameId: String, score: Int, stars: Int): Int {
+        val newBest = score > best(gameId)
+        if (newBest) { bests = bests + (gameId to score); savePairs("bests", bests.mapValues { it.value.toLong() to 0 }) }
+        val gained = stars * 5 + if (newBest && stars > 0) 5 else 0
+        addXp(gained)
+        bump(Quests.Metric.GAMES); if (stars == 3) bump(Quests.Metric.GAME_STARS3)
+        if (gained > 0) { practiceDays = practiceDays + LocalDate.now().toString(); prefs.edit().putStringSet("days", practiceDays).apply() }
+        return gained
+    }
 
     fun buy(item: Shop.Item): Boolean {
         if (item.id in owned || balance < item.price) return false
@@ -96,6 +161,11 @@ class Store(context: Context) {
     /** The lesson finished last, so the Learn path can pop its tick in. Read once. */
     private var justCompleted: String? = null
     fun takeJustCompleted(): String? = justCompleted.also { justCompleted = null }
+
+    /** Calm motion: fewer moving things (bubbles stop, Lou moves less). Starts on if the phone's own animations are off. */
+    var reduceMotion by mutableStateOf(prefs.getBoolean("reduceMotion", runCatching {
+        android.provider.Settings.Global.getFloat(context.contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f }.getOrDefault(false))); private set
+    fun changeReduceMotion(v: Boolean) { reduceMotion = v; prefs.edit().putBoolean("reduceMotion", v).apply(); com.beatpath.app.ui.aero.Motion.reduce = v }
 
     /** Studio Piano roll: color notes by pitch (the Music basics rainbow). */
     var rainbowRoll by mutableStateOf(prefs.getBoolean("rainbowRoll", true)); private set
@@ -127,7 +197,7 @@ class Store(context: Context) {
         val seen = prefs.getStringSet("attempts", emptySet())!!
         if (attemptId in seen) return 0
         val gained = if (lessonId in completed) 5 else 10 + if (allUnassisted) 5 else 0
-        xp += gained
+        xp += gained; bump(Quests.Metric.LESSONS); bump(Quests.Metric.XP, gained)
         completed = completed + lessonId
         justCompleted = lessonId
         if (allUnassisted) unassisted = unassisted + lessonId
@@ -148,11 +218,13 @@ class Store(context: Context) {
         val seen = prefs.getStringSet("attempts", emptySet())!!
         if (attemptId in seen) return 0
         xp += gained; practiceDays = practiceDays + LocalDate.now().toString()
+        bump(Quests.Metric.PRACTICE); bump(Quests.Metric.XP, gained)
         prefs.edit().putInt("xp", xp).putStringSet("days", practiceDays).putStringSet("attempts", seen + attemptId).apply()
         return gained
     }
 
     fun recordSkill(skillId: String, ok: Boolean) {
+        if (ok) bump(Quests.Metric.EAR_RIGHT)
         val (a, c) = skills[skillId] ?: (0 to 0)
         skills = skills + (skillId to ((a + 1) to (c + if (ok) 1 else 0)))
         savePairs("skills", skills.mapValues { it.value.first.toLong() to it.value.second })

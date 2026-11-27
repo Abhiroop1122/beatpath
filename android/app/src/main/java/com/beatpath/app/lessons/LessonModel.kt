@@ -98,7 +98,7 @@ object Checks {
         return when {
             missing.isEmpty() && extra.isEmpty() -> ok("Nailed it!", success)
             missing.isNotEmpty() -> no("Almost", "${kind.label} still needs ${stepName(missing.first())}.")
-            else -> no("One extra hit", "${kind.label} on ${stepName(extra.first())} isn't part of this pattern — tap it to remove it.")
+            else -> no("One extra hit", "${kind.label} on ${stepName(extra.first())} isn't part of this pattern. Tap it to turn it off.")
         }
     }
 
@@ -111,13 +111,13 @@ object Checks {
         val got = at.map { it.pitch % 12 }.toSet()
         val where = "bar ${tick / TICKS_PER_BAR + 1}, beat ${tick % TICKS_PER_BAR / TICKS_PER_BEAT + 1}"
         if (got == pcs && at.size >= pcs.size) {
-            if (bassPc != null && at.minByOrNull { it.pitch }!!.pitch % 12 != bassPc) return no("Right notes, different bottom", "Put ${Pitch.pcName(bassPc)} as the lowest note of $name.")
+            if (bassPc != null && at.minByOrNull { it.pitch }!!.pitch % 12 != bassPc) return no("Right notes, wrong bottom", "Make ${Pitch.pcName(bassPc)} the lowest note of $name.")
             return ok("That's $name!", "All its notes start together on $where.")
         }
         val late = all.filter { it.startTick != tick && it.pitch % 12 in (pcs - got) && abs(it.startTick - tick) < TICKS_PER_BAR }
-        if (late.isNotEmpty()) return no("One note is off the beat", "${Pitch.flName(late.first().pitch)} should start on $where with the others — block chords start together.")
+        if (late.isNotEmpty()) return no("One note is off the beat", "${Pitch.flName(late.first().pitch)} should start on $where, together with the others. Chord notes start together.")
         val extra = got - pcs
-        if (extra.isNotEmpty()) return no("One note doesn't belong", "${Pitch.pcName(extra.first())} isn't in $name. It uses ${pcs.joinToString(", ") { Pitch.pcName(it) }}.")
+        if (extra.isNotEmpty()) return no("One note doesn't belong", "${Pitch.pcName(extra.first())} isn't in $name. $name uses ${pcs.joinToString(", ") { Pitch.pcName(it) }}.")
         return no("Keep stacking", "$name still needs ${(pcs - got).joinToString(" and ") { Pitch.pcName(it) }} on $where.")
     }
 
@@ -145,28 +145,28 @@ object Checks {
 
     fun melody(p: Project, k: ChannelKind, r: MelodyRules, success: String): Verdict {
         val ns = notes(p, k)
-        if (ns.size < r.minNotes) return no("Keep writing", "Use at least ${r.minNotes} notes — you have ${ns.size}.")
+        if (ns.size < r.minNotes) return no("Keep writing", "Use at least ${r.minNotes} notes. You have ${ns.size} so far.")
         if (r.noOverlaps) {
             val stacked = ns.groupBy { it.startTick }.values.firstOrNull { it.size > 1 }
             if (stacked != null) return no("One note at a time", "A melody plays one note at a time. Two notes start together at ${posName(stacked[0].startTick)}.")
         }
-        r.scale?.let { sc -> ns.firstOrNull { it.pitch % 12 !in sc }?.let { return no("Outside the key", "${Pitch.flName(it.pitch)} isn't in this scale. Try a neighbouring shaded row.") } }
+        r.scale?.let { sc -> ns.firstOrNull { it.pitch % 12 !in sc }?.let { return no("Outside the key", "${Pitch.flName(it.pitch)} isn't in this key. Move it to a shaded row next to it.") } }
         ns.firstOrNull { it.pitch < r.lowest || it.pitch > r.highest }?.let { return no("Out of range", "Keep notes between ${Pitch.flName(r.lowest)} and ${Pitch.flName(r.highest)}.") }
         val moves = ns.zipWithNext { a, b -> abs(b.pitch - a.pitch) }
-        moves.indexOfFirst { it > r.maxLeap }.takeIf { it >= 0 }?.let { return no("That jump is big", "From ${Pitch.flName(ns[it].pitch)} to ${Pitch.flName(ns[it + 1].pitch)} leaps ${moves[it]} semitones. Keep leaps within ${r.maxLeap}.") }
+        moves.indexOfFirst { it > r.maxLeap }.takeIf { it >= 0 }?.let { return no("That jump is big", "From ${Pitch.flName(ns[it].pitch)} to ${Pitch.flName(ns[it + 1].pitch)} jumps ${moves[it]} rows. Keep jumps to ${r.maxLeap} rows or less.") }
         if (moves.isNotEmpty() && r.minStepwise > 0f) {
             val share = moves.count { it <= 2 }.toFloat() / moves.size
-            if (share < r.minStepwise) return no("Lots of jumping", "Only ${(share * 100).toInt()}% of moves are steps. Melodies people sing move mostly by step — try neighbouring notes.")
+            if (share < r.minStepwise) return no("Lots of jumping", "Only ${(share * 100).toInt()}% of your moves are small steps. Tunes people sing mostly move to a note next door.")
         }
         if (r.needsRest) {
             val gaps = ns.zipWithNext().any { (a, b) -> b.startTick > a.startTick + a.durationTicks } || ns.first().startTick > 0
-            if (!gaps) return no("Let it breathe", "Leave at least one gap (a rest) between two notes.")
+            if (!gaps) return no("Let it breathe", "Leave at least one empty gap, a rest, between two notes.")
         }
-        r.endsOnPc?.let { pc -> if (ns.last().pitch % 12 != pc) return no("End on home", "Finish on ${Pitch.pcName(pc)} — the home note — so it sounds complete.") }
+        r.endsOnPc?.let { pc -> if (ns.last().pitch % 12 != pc) return no("End on home", "Finish on ${Pitch.pcName(pc)}, the home note, so it sounds finished.") }
         r.chordTonesOnDownbeats.forEach { (bar, pcs) ->
             val n = ns.firstOrNull { it.startTick == bar * TICKS_PER_BAR }
                 ?: return no("Start bar ${bar + 1} with a note", "Put a note right on beat 1 of bar ${bar + 1}.")
-            if (n.pitch % 12 !in pcs) return no("Lean on the chord", "Beat 1 of bar ${bar + 1} sounds best on a chord tone: ${pcs.joinToString(", ") { Pitch.pcName(it) }}.")
+            if (n.pitch % 12 !in pcs) return no("Lean on the chord", "Beat 1 of bar ${bar + 1} sounds best on a chord note: ${pcs.joinToString(", ") { Pitch.pcName(it) }}.")
         }
         return ok("Sounds like a melody!", success)
     }

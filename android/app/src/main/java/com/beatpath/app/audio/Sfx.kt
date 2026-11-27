@@ -46,6 +46,8 @@ class Sfx(private val e: AudioEngine) {
     fun louHmm() = s(SfxType.GLIDE, 76, 0.45f, 0.08f, to = 72)
     fun louSurprised() { s(SfxType.BLIP, 76, 0.12f, 0.09f, to = 93); s(SfxType.GLITTER, 105, 0.25f, 0.03f, delay = 0.08f) }
     fun louYawn() = s(SfxType.GLIDE, 81, 0.7f, 0.06f, to = 69)
+    /** A small sad "aww": two falling glides. */
+    fun louSad() { s(SfxType.GLIDE, 79, 0.34f, 0.08f, to = 74); s(SfxType.GLIDE, 75, 0.62f, 0.075f, to = 66, delay = 0.3f) }
     /** A sparkle before Lou speaks — his little "ding" of personality. */
     fun louChime() { s(SfxType.GLITTER, 100, 0.25f, 0.035f); s(SfxType.GLITTER, 104, 0.25f, 0.03f, delay = 0.04f) }
 

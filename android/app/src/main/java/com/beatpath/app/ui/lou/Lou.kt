@@ -36,7 +36,7 @@ import kotlin.math.sin
 import kotlin.random.Random
 
 /** Everything Lou can feel. Each mood is a target pose that every body part glides toward. */
-enum class LouMood { Idle, Listen, Happy, Cheer, Think, Surprised, Encourage, Sleepy, Dance }
+enum class LouMood { Idle, Listen, Happy, Cheer, Think, Surprised, Encourage, Sleepy, Dance, Sad }
 
 /**
  * The blended pose. Every value eases toward the current mood's target with a critically damped
@@ -59,6 +59,8 @@ private class Pose {
         LouMood.Encourage -> floatArrayOf(0.3f, 0.2f, 0.2f, -10f, 0.35f, -5f, 0.11f, 0f, 1f, 0f, 0f, 0.6f)
         LouMood.Sleepy -> floatArrayOf(0.72f, 0.05f, 0.05f, 0f, 0f, 0f, 0.09f, 0f, 1f, 0f, 0f, 0.9f)
         LouMood.Dance -> floatArrayOf(0.35f, 0.15f, 0.15f, 0f, 0.4f, 0f, 0.12f, 0.15f, 1f, 0f, 0f, 1f)
+        // droopy lids, brows tilted up in the middle, head down, the smile turned into a frown
+        LouMood.Sad -> floatArrayOf(0.6f, 0.02f, 0.02f, 14f, 0f, -3f, 0.085f, 0f, 1f, 0f, 0f, -0.75f)
     }
 
     fun ease(m: LouMood, mouthIn: Float, lx: Float, ly: Float, dt: Float) {
@@ -83,7 +85,7 @@ fun Lou(
     mood: LouMood = LouMood.Idle,
     mouthOpen: Float = 0f,
     beatPhase: Float? = null,
-    reduceMotion: Boolean = false,
+    reduceMotion: Boolean = com.beatpath.app.ui.aero.Motion.reduce,
     outfit: LouOutfit = LouLook.outfit,
 ) {
     val moodState by rememberUpdatedState(mood)
@@ -127,6 +129,7 @@ fun Lou(
                 val (lx, ly) = when (moodState) {
                     LouMood.Think -> 0.8f to -0.9f
                     LouMood.Listen -> 0f to -0.2f
+                    LouMood.Sad -> 0f to 0.8f
                     LouMood.Cheer, LouMood.Happy, LouMood.Surprised, LouMood.Dance -> 0f to 0f
                     else -> tx to ty
                 }
@@ -275,6 +278,15 @@ private fun DrawScope.drawLou(pose: Pose, mood: LouMood, t: Float, since: Float,
                 }
             }
 
+            if (mood == LouMood.Sad && !still) {
+                // one slow tear rolls down from the right eye
+                val tp = (since % 2.2f) / 2.2f
+                val tear = Offset(108f, 37f + tp * 16f)
+                val a = (if (tp < 0.15f) tp / 0.15f else 1f - (tp - 0.15f) / 0.85f).coerceIn(0f, 1f)
+                val drop = Path().apply { moveTo(tear.x, tear.y - 4.5f); cubicTo(tear.x + 3.2f, tear.y - 0.5f, tear.x + 3.2f, tear.y + 3f, tear.x, tear.y + 3f); cubicTo(tear.x - 3.2f, tear.y + 3f, tear.x - 3.2f, tear.y - 0.5f, tear.x, tear.y - 4.5f); close() }
+                drawPath(drop, Color(0xFF7FD3FF).copy(alpha = a)); drawCircle(Color.White.copy(alpha = a * 0.8f), 0.9f, Offset(tear.x - 1f, tear.y))
+            }
+            drawNeck(outfit.neck, t)
             drawFace(outfit.face)
             drawHat(outfit.hat, t)
 
@@ -285,7 +297,7 @@ private fun DrawScope.drawLou(pose: Pose, mood: LouMood, t: Float, since: Float,
             val sx = (0.75f + pose.mouthW * 2.5f) * (1f - 0.3f * pose.thinkMouth)
             val sy = (pose.smile * (0.8f + pose.mouthW * 2f)) * (1f - 0.7f * pose.thinkMouth)
             if (openK < 0.99f) translate(pose.thinkMouth * 3f, 0f) {
-                scale(sx, sy.coerceAtLeast(0.15f), mc) { drawPath(m.path, m.color.copy(alpha = 1f - openK)) }
+                scale(sx, if (sy < 0f) sy.coerceAtMost(-0.15f) else sy.coerceAtLeast(0.15f), mc) { drawPath(m.path, m.color.copy(alpha = 1f - openK)) }
             }
             if (openK > 0.01f) {
                 val mw = mb.width * sx * 0.78f

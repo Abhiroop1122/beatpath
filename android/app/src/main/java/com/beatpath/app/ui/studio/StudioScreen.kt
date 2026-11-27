@@ -1,5 +1,6 @@
 package com.beatpath.app.ui.studio
 
+import com.beatpath.app.ui.aero.flBox
 import com.beatpath.app.model.SoundPresets
 import android.widget.Toast
 import androidx.compose.foundation.layout.FlowRow
@@ -38,6 +39,7 @@ import androidx.compose.material.icons.rounded.ChevronLeft
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.GridOn
 import androidx.compose.material.icons.rounded.Piano
+import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Save
 import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material.icons.rounded.UploadFile
@@ -149,7 +151,7 @@ fun StudioScreen(
     val attemptId = remember { "${lesson?.id}-${System.currentTimeMillis()}" }
     var stepIdx by remember { mutableIntStateOf(0) }
     val step = lesson?.steps?.getOrNull(stepIdx)
-    var win by remember { mutableStateOf(if (step?.window == Win.ROLL) Win.ROLL else Win.RACK) }
+    var win by remember { mutableStateOf(if (step?.window == Win.ROLL) Win.ROLL else if (lesson == null && initial.songMode) Win.PLAYLIST else Win.RACK) }
     var focus by remember { mutableStateOf(step?.channel ?: ChannelKind.KICK) }
     var tray by remember { mutableStateOf<TrayMsg?>(null) }
     var lastPass by remember { mutableStateOf(false) }
@@ -179,9 +181,13 @@ fun StudioScreen(
         s.setup?.let { project = it(project) }
         lou.say(s.say, if (introOpen && stepIdx == 0) LouMood.Happy else LouMood.Idle)
     }
-    LaunchedEffect(Unit) { if (lesson == null) lou.say("Free play! Tap steps for a beat, or open the Piano roll.", LouMood.Happy) }
-    LaunchedEffect(project.pattern, project.bpm, playing) { if (playing) engine.update(project.pattern, project.bpm) }
+    LaunchedEffect(Unit) { if (lesson == null) lou.say(if (initial.songMode) "Song maker! Make loop A, pick B and make another, then place them in the song row." else "Free play! Tap steps for a beat, or open the Piano roll.", LouMood.Happy) }
+    /** What Play plays: one loop, or the whole song flattened into one long pattern. */
+    fun playPattern() = if (lesson == null && project.songMode && project.playlist.isNotEmpty()) project.songPattern() else project.pattern
+    LaunchedEffect(project.pattern, project.playlist, project.songMode, project.bpm, playing) { if (playing) engine.update(playPattern(), project.bpm) }
     LaunchedEffect(project.mix) { engine.mix = project.mix }
+    // a call, another app or unplugged headphones stopped the music: show it as stopped
+    LaunchedEffect(engine.interruptions) { if (engine.interruptions > 0) playing = false }
     LaunchedEffect(metronome) { engine.setMetronome(metronome) }
     LaunchedEffect(playing) {
         if (!playing) { playhead = -1; beatPhase = 0f; return@LaunchedEffect }
@@ -199,12 +205,14 @@ fun StudioScreen(
     var saved by remember { mutableStateOf(start) }
     /** Leaving: lessons with progress ask first; free play with unsaved changes offers to save. */
     fun requestExit() {
-        val lessonProgress = lesson != null && !introOpen && (stepIdx > 0 || undo.isNotEmpty())
-        val unsaved = lesson == null && project != saved && project.pattern.channels.any { it.notes.isNotEmpty() }
+        // once a lesson has started, leaving always asks first (sad Lou), like every other lesson
+        val lessonProgress = lesson != null && !introOpen
+        // any loop (A, B or C) or a song row counts as music worth saving
+        val unsaved = lesson == null && project != saved && (hasMusic(project.pattern) || project.others.values.any { hasMusic(it) } || project.playlist.isNotEmpty())
         if (lessonProgress || unsaved) { leaveDialog = true; sfx.tap() } else { engine.stop(); playing = false; onExit() }
     }
 
-    fun togglePlay() { if (playing) { engine.stop(); playing = false } else { engine.play(project.pattern, project.bpm); playing = true }; sfx.tap() }
+    fun togglePlay() { if (playing) { engine.stop(); playing = false } else { engine.play(playPattern(), project.bpm); playing = true }; sfx.tap() }
     fun stopAll() { engine.stop(); playing = false }
     fun trayCta() {
         val passed = lastPass
@@ -228,8 +236,8 @@ fun StudioScreen(
         lastPass = v.pass
         val last = stepIdx == lesson!!.steps.lastIndex
         if (v.pass) {
-            // every success teaches one more thing: FL tip on the final step, otherwise alternating theory / FL tips
-            val tip = if (last) "FL tip: ${lesson.flTip}" else com.beatpath.app.lessons.Tips.next(track)
+            // every success teaches one more thing: a short theory tip
+            val tip = com.beatpath.app.lessons.Tips.next(track)
             sfx.correct(); lou.react(if (last) LouMood.Cheer else LouMood.Happy); lou.say(v.headline, lou.mood)
             tray = TrayMsg(true, v.headline, v.body, if (last) "Finish lesson" else "Next step", tip = tip)
         } else {
@@ -242,15 +250,17 @@ fun StudioScreen(
     // a listen-first step checks itself once the loop has played
     LaunchedEffect(loops, pendingCheck) { if (pendingCheck && step != null && loops >= step.needsLoops) check() }
 
+    /** Exports the whole song when Song is on, otherwise the loop you're editing. */
+    fun exportProject() = if (lesson == null && project.songMode && project.playlist.isNotEmpty()) project.copy(pattern = project.songPattern(), songMode = false) else project
     val midiLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("audio/midi")) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
-        val ok = runCatching { context.contentResolver.openOutputStream(uri)?.use { it.write(MidiExport.pattern(project)) } ?: error("no stream") }.isSuccess
+        val ok = runCatching { context.contentResolver.openOutputStream(uri)?.use { it.write(MidiExport.pattern(exportProject())) } ?: error("no stream") }.isSuccess
         lou.say(if (ok) "Saved! In FL: open a channel's Piano roll → File → Import MIDI file." else "Export didn't work — your loop is still safe here.", if (ok) LouMood.Happy else LouMood.Encourage)
     }
     val wavLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("audio/wav")) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         lou.say("Turning your loop into a WAV…", LouMood.Think)
-        val snapshot = project
+        val snapshot = exportProject()
         scope.launch {
             val ok = runCatching {
                 val bytes = withContext(Dispatchers.Default) { WavExport.render(snapshot) }
@@ -275,7 +285,7 @@ fun StudioScreen(
     val title = lesson?.title ?: project.name
     val subtitle = lesson?.let { "${if (it.level == 0) "Practice" else "Level ${it.level}"} · step ${stepIdx + 1} of ${it.steps.size}" } ?: "${project.pattern.bars} bar${if (project.pattern.bars > 1) "s" else ""} · free play"
     fun saveNow() { onSave(project); saved = project; sfx.select(); Toast.makeText(context, "Saved to My loops", Toast.LENGTH_SHORT).show() }
-    fun exportOrNudge() { if (project.pattern.channels.all { it.notes.isEmpty() }) lou.say("Add some notes first, then export.", LouMood.Think) else exportMenu = true }
+    fun exportOrNudge() { if (!hasMusic(exportProject().pattern)) lou.say("Add some notes first, then export.", LouMood.Think) else exportMenu = true }
     /** Three rungs, each different: a clue, then gold outlines (when the step has them), then the idea in other words. */
     val hintMax = if (step?.hintGhosts?.isNotEmpty() == true) 3 else 2
     fun hint(s: com.beatpath.app.lessons.LessonStep) {
@@ -291,7 +301,9 @@ fun StudioScreen(
     val windowArea: @Composable (Modifier) -> Unit = { m ->
         Box(m) {
             val mod = Modifier.fillMaxSize()
-            if (win == Win.ROLL) FlRoll(
+            if (win == Win.PLAYLIST) SongView(project, if (playhead >= 0) playhead / com.beatpath.app.model.TICKS_PER_BAR else -1,
+                onProject = { edit(it) }, onTap = { sfx.tap() }, modifier = mod)
+            else if (win == Win.ROLL) FlRoll(
                 pattern = project.pattern, channel = rollChannel,
                 rows = lesson?.rows ?: if (rollChannel == ChannelKind.BASS) 28..60 else 52..84, scale = lesson?.scale,
                 ghostChannels = lesson?.ghost ?: emptySet(), ghosts = ghosts, playheadTick = playhead,
@@ -342,15 +354,16 @@ fun StudioScreen(
         }
     }
     val metroButton: @Composable () -> Unit = {
-        Box(Modifier.size(44.dp).clip(RoundedCornerShape(10.dp)).background(if (metronome) Color(0x55A9E34B) else Fl.Dark).border(1.dp, Fl.Edge, RoundedCornerShape(10.dp))
+        Box(Modifier.size(44.dp).flBox(10.dp, on = metronome)
             .clickable { metronome = !metronome; sfx.toggleOn() }.semantics { contentDescription = "Metronome ${if (metronome) "on" else "off"}" }, contentAlignment = Alignment.Center) {
             Icon(Icons.Rounded.Timer, null, tint = if (metronome) Fl.Lime else Fl.Text2, modifier = Modifier.size(22.dp))
         }
     }
     val windowTabs: @Composable () -> Unit = {
-        Row(Modifier.clip(RoundedCornerShape(10.dp)).background(Fl.Dark).border(1.dp, Fl.Edge, RoundedCornerShape(10.dp)).padding(3.dp)) {
-            SegTab(Icons.Rounded.GridOn, "Rack", "Channel rack (F6)", win == Win.RACK, showLabel = !land) { win = Win.RACK; sfx.tap() }
-            SegTab(Icons.Rounded.Piano, "Roll", "Piano roll (F7)", win == Win.ROLL, showLabel = !land) { win = Win.ROLL; sfx.tap() }
+        Row(Modifier.flBox(10.dp).padding(3.dp)) {
+            SegTab(Icons.Rounded.GridOn, "Rack", "Channel rack (F6)", win == Win.RACK, showLabel = !land && lesson != null) { win = Win.RACK; sfx.tap() }
+            SegTab(Icons.Rounded.Piano, "Roll", "Piano roll (F7)", win == Win.ROLL, showLabel = !land && lesson != null) { win = Win.ROLL; sfx.tap() }
+            if (lesson == null) SegTab(Icons.Rounded.MusicNote, "Song", "Song: arrange loops A, B and C", win == Win.PLAYLIST, showLabel = false) { win = Win.PLAYLIST; sfx.tap() }
         }
     }
     val exportItems: @Composable () -> Unit = {
@@ -361,13 +374,11 @@ fun StudioScreen(
     val chips: @Composable () -> Unit = {
         // tap a music word to have Lou explain it; after a hint or explanation, one tap brings the task back
         if (terms.isNotEmpty() || offTask) FlowRow(Modifier.padding(top = 6.dp, bottom = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            if (offTask) Text("↩ Back to the task", style = AeroType.Small.copy(color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold),
-                modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(Color(0xFF1C7FC4)).clickable { sfx.tap(); lou.say(step!!.say, LouMood.Idle) }
-                    .padding(horizontal = 10.dp, vertical = 8.dp).semantics { contentDescription = "Back to the task: show the instructions again" })
+            if (offTask) com.beatpath.app.ui.aero.ClayChip("↩ Back to the task", { sfx.tap(); lou.say(step!!.say, LouMood.Idle) }, gel = Gel.Aqua,
+                description = "Back to the task: show the instructions again")
             terms.forEach { term ->
-                Text("? ${term.word}", style = AeroType.Small.copy(color = Color(0xFF0A548F), fontSize = 11.sp),
-                    modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(Color(0x332E9BE6)).clickable { sfx.select(); lou.say(term.meaning, LouMood.Think) }
-                        .padding(horizontal = 10.dp, vertical = 8.dp).semantics { contentDescription = "What does ${term.word} mean?" })
+                com.beatpath.app.ui.aero.ClayChip("? ${term.word}", { sfx.select(); lou.say(term.meaning, LouMood.Think) }, gel = Gel.Cream,
+                    description = "What does ${term.word} mean?")
             }
         }
     }
@@ -382,6 +393,7 @@ fun StudioScreen(
                     FlTransport(playing, project.bpm, onPlay = { togglePlay() }, onStop = { stopAll(); sfx.tap() }, onTempo = { tempoDialog = true })
                     metroButton()
                     windowTabs()
+                    if (lesson == null) LoopPicker(project, { if (it != project.current) { edit(project.switchTo(it)); sfx.tap() } })
                     if (!coachOpen) Text(title, style = AeroType.Studio.copy(fontSize = 14.sp, fontWeight = FontWeight.Bold), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 6.dp))
                     else Spacer(Modifier.weight(1f))
                     TopIcon(Icons.AutoMirrored.Rounded.Undo, "Undo", undo.isNotEmpty()) { redo.add(project); project = undo.removeAt(undo.lastIndex) }
@@ -390,7 +402,7 @@ fun StudioScreen(
                         TopIcon(Icons.Rounded.MoreVert, "Save or export") { exportMenu = true }
                         DropdownMenu(exportMenu, { exportMenu = false }) {
                             DropdownMenuItem(text = { Text("Save to My loops") }, onClick = { exportMenu = false; saveNow() })
-                            if (project.pattern.channels.any { it.notes.isNotEmpty() }) exportItems()
+                            if (hasMusic(exportProject().pattern)) exportItems()
                         }
                     }
                     if (!coachOpen) LouOrb(lou, { coachOpen = true; sfx.tap() }, Modifier.size(44.dp), beatPhase = if (playing) beatPhase else null)
@@ -448,6 +460,10 @@ fun StudioScreen(
             }
 
             // ---------- active window ----------
+            if (lesson == null) Row(Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                LoopPicker(project, { if (it != project.current) { edit(project.switchTo(it)); sfx.tap(); lou.say("Now editing loop ${loopName(it)}.", LouMood.Happy) } })
+                Text("  Editing loop ${loopName(project.current)}", style = AeroType.Studio.copy(fontSize = 13.sp), modifier = Modifier.weight(1f))
+            }
             windowArea(Modifier.weight(1f).fillMaxWidth())
 
             // ---------- Lou coach (stacked below the window, never covers it) ----------
@@ -456,7 +472,7 @@ fun StudioScreen(
                     Row(verticalAlignment = Alignment.Top) {
                         Lou(Modifier.size(50.dp, 44.dp), mood = lou.mood, mouthOpen = lou.mouth, beatPhase = if (playing) beatPhase else null)
                         // fixed height: what Lou says scrolls inside, so the Rack and Piano roll above never shrink or jump
-                        Column(Modifier.weight(1f).height(if (step != null) 118.dp else 64.dp)
+                        Column(Modifier.weight(1f).height(if (step != null) 118.dp else 84.dp)
                             // soft fade at the bottom edge says "there's more, scroll"
                             .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
                             .drawWithContent { drawContent(); drawRect(Brush.verticalGradient(listOf(Color.Black, Color.Transparent), size.height - 14.dp.toPx(), size.height), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn) }
@@ -495,7 +511,6 @@ fun StudioScreen(
                             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 com.beatpath.app.lessons.Glossary.find(lesson.idea + " " + lesson.title, 3).forEach { term -> Text("• ${term.word}: ${term.meaning}", style = AeroType.Body.copy(fontSize = 14.sp)) }
                                 Text("💡 ${com.beatpath.app.lessons.Tips.theoryFor(track).first()}", style = AeroType.Body.copy(fontSize = 14.sp, color = Color(0xFF0A548F)))
-                                Text("In FL Studio: ${lesson.flTip}", style = AeroType.Small)
                             }
                         }
                     }
@@ -515,53 +530,57 @@ fun StudioScreen(
                     Text("WHERE IS THIS IN FL?", style = AeroType.Caps)
                     Text(inf.title, style = AeroType.Title)
                     Fact("Shortcut / place", inf.shortcut); Fact("On desktop", inf.desktop); Fact("Here on your phone", inf.phone)
-                    lesson?.let { Fact("Tip for this lesson", it.flTip) }
                     GelButton("Got it", { flSheet = null }, Modifier.fillMaxWidth())
                 }
             }
         }
 
-        if (tempoDialog) AlertDialog(containerColor = Color(0xFFF3FAFF),
-            onDismissRequest = { tempoDialog = false }, confirmButton = { TextButton({ tempoDialog = false }) { Text("Done") } },
-            title = { Text("Tempo", style = AeroType.H2) },
-            text = {
+        if (tempoDialog) com.beatpath.app.ui.aero.ClayDialog(onDismiss = { tempoDialog = false }) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Tempo: how fast the beat goes", style = AeroType.H2)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     GelButton("−5", { edit(project.copy(bpm = (project.bpm - 5).coerceAtLeast(60))) }, Modifier.width(72.dp), gel = Gel.Silver)
                     Text("${project.bpm} BPM", style = AeroType.Title)
                     GelButton("+5", { edit(project.copy(bpm = (project.bpm + 5).coerceAtMost(180))) }, Modifier.width(72.dp), gel = Gel.Silver)
                 }
-            },
-        )
+                GelButton("Done", { tempoDialog = false }, Modifier.fillMaxWidth(), gel = Gel.Grass)
+            }
+        }
 
-        if (leaveDialog) AlertDialog(containerColor = Color(0xFFF3FAFF), onDismissRequest = { leaveDialog = false },
-            title = { Text(if (lesson != null) "Leave this lesson?" else "Save your loop?", style = AeroType.H2) },
-            text = { Text(if (lesson != null) "Your progress in this lesson won't be kept. You can start it again from the path any time." else "You have changes that aren't in My loops yet.", style = AeroType.Body) },
-            confirmButton = {
-                if (lesson != null) TextButton({ leaveDialog = false; stopAll(); onExit() }) { Text("Leave") }
-                else TextButton({ leaveDialog = false; saveNow(); stopAll(); onExit() }) { Text("Save & leave") }
-            },
-            dismissButton = {
-                Row {
-                    if (lesson == null) TextButton({ leaveDialog = false; stopAll(); onExit() }) { Text("Don't save") }
-                    TextButton({ leaveDialog = false }) { Text(if (lesson != null) "Keep going" else "Keep editing") }
+        if (leaveDialog) {
+            if (lesson != null) com.beatpath.app.ui.aero.LeaveDialog(sfx, onLeave = { leaveDialog = false; stopAll(); onExit() }, onStay = { leaveDialog = false })
+            else com.beatpath.app.ui.aero.ClayDialog(onDismiss = { leaveDialog = false }) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    com.beatpath.app.ui.lou.Lou(Modifier.size(110.dp, 96.dp), mood = com.beatpath.app.ui.lou.LouMood.Think)
+                    Text("Save your music first?", style = AeroType.Title.copy(fontSize = 22.sp))
+                    Text("You made changes that aren't in My loops yet.", style = AeroType.Body)
+                    GelButton("Save and leave", { leaveDialog = false; saveNow(); stopAll(); onExit() }, Modifier.fillMaxWidth(), gel = Gel.Grass)
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        GelButton("Don't save", { leaveDialog = false; stopAll(); onExit() }, Modifier.weight(1f), gel = Gel.Silver)
+                        GelButton("Keep going", { leaveDialog = false }, Modifier.weight(1f), gel = Gel.Aqua)
+                    }
                 }
-            })
+            }
+        }
 
         velTarget?.let { (k, s) ->
-            AlertDialog(containerColor = Color(0xFFF3FAFF), onDismissRequest = { velTarget = null }, confirmButton = {}, dismissButton = { TextButton({ velTarget = null }) { Text("Cancel") } }, title = { Text("How hard is step ${s % 16 + 1} hit?", style = AeroType.H2) },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf("Soft (ghost)" to 45, "Medium" to 80, "Loud (accent)" to 115).forEach { (label, v) ->
-                            GelButton(label, {
-                                editPattern(project.pattern.update(k) { ch -> ch.copy(notes = ch.notes.map { if (it.startTick == s * TICKS_PER_STEP) it.copy(velocity = v) else it }) })
-                                engine.playDrum(k, v / 127f); velTarget = null
-                            }, Modifier.fillMaxWidth(), gel = if (v == 45) Gel.Silver else if (v == 80) Gel.Aqua else Gel.Orange, height = 42.dp)
-                        }
+            com.beatpath.app.ui.aero.ClayDialog(onDismiss = { velTarget = null }) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("How hard is step ${s % 16 + 1} hit?", style = AeroType.H2)
+                    listOf("Soft (ghost)" to 45, "Medium" to 80, "Loud (accent)" to 115).forEach { (label, v) ->
+                        GelButton(label, {
+                            editPattern(project.pattern.update(k) { ch -> ch.copy(notes = ch.notes.map { if (it.startTick == s * TICKS_PER_STEP) it.copy(velocity = v) else it }) })
+                            engine.playDrum(k, v / 127f); velTarget = null
+                        }, Modifier.fillMaxWidth(), gel = if (v == 45) Gel.Silver else if (v == 80) Gel.Aqua else Gel.Orange, height = 42.dp)
                     }
-                })
+                    GelButton("Cancel", { velTarget = null }, Modifier.fillMaxWidth(), gel = Gel.Off, height = 40.dp)
+                }
+            }
         }
     }
 }
+
+private fun hasMusic(p: com.beatpath.app.model.Pattern) = p.channels.any { it.notes.isNotEmpty() }
 
 @Composable
 private fun Fact(head: String, text: String) { Column { Text(head, style = AeroType.Small); Text(text, style = AeroType.BodyStrong) } }
@@ -575,7 +594,7 @@ private fun TopIcon(icon: ImageVector, desc: String, enabled: Boolean = true, on
 
 @Composable
 private fun TopText(label: String, desc: String, onClick: () -> Unit) {
-    Text(label, style = AeroType.Studio, modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(Fl.Dark).border(1.dp, Fl.Edge, RoundedCornerShape(6.dp))
+    Text(label, style = AeroType.Studio, modifier = Modifier.flBox(6.dp)
         .clickable(onClick = onClick).padding(horizontal = 8.dp, vertical = 8.dp).semantics { contentDescription = desc })
 }
 

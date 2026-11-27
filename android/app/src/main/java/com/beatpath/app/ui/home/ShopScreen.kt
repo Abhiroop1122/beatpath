@@ -9,12 +9,11 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -30,7 +29,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -55,8 +53,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
@@ -66,11 +65,15 @@ import com.beatpath.app.audio.Sfx
 import com.beatpath.app.data.Shop
 import com.beatpath.app.data.Store
 import com.beatpath.app.ui.aero.AeroBackground
+import com.beatpath.app.ui.aero.ClayChip
+import com.beatpath.app.ui.aero.ClayIconButton
 import com.beatpath.app.ui.aero.Gel
 import com.beatpath.app.ui.aero.GelButton
 import com.beatpath.app.ui.aero.GelOrb
 import com.beatpath.app.ui.aero.LouBubble
-import com.beatpath.app.ui.aero.glass
+import com.beatpath.app.ui.aero.clayCard
+import com.beatpath.app.ui.aero.clayPress
+import com.beatpath.app.ui.aero.claySurface
 import com.beatpath.app.ui.aero.isLandscape
 import com.beatpath.app.ui.aero.sideSafe
 import com.beatpath.app.ui.lou.Lou
@@ -95,11 +98,10 @@ fun LevelBar(totalXp: Int, modifier: Modifier = Modifier) {
             Text("LEVEL $lv · ${Shop.title(lv).uppercase()}", style = AeroType.Caps, modifier = Modifier.weight(1f))
             Text("$into / $need XP", style = AeroType.Small)
         }
-        Box(Modifier.fillMaxWidth().height(12.dp).drawBehind {
-            val r = CornerRadius(size.height / 2)
-            drawRoundRect(Color(0x55FFFFFF), cornerRadius = r)
-            drawRoundRect(Brush.horizontalGradient(listOf(Color(0xFFFFC86B), Color(0xFFF2852B))), size = Size(size.width * k.coerceAtLeast(0.03f), size.height), cornerRadius = r)
-            drawRoundRect(Color(0x55FFFFFF), Offset(3f, 2f), Size((size.width * k - 6f).coerceAtLeast(0f), size.height * 0.35f), r)
+        Box(Modifier.fillMaxWidth().height(14.dp).claySurface(Gel.Off, 7.dp, depth = 2.dp).drawBehind {
+            val r = CornerRadius((size.height - 2.dp.toPx()) / 2)
+            drawRoundRect(Brush.verticalGradient(listOf(Color(0xFFFFC86B), Color(0xFFF2852B))), size = Size(size.width * k.coerceAtLeast(0.04f), size.height - 2.dp.toPx()), cornerRadius = r)
+            drawRoundRect(Color(0x55FFFFFF), Offset(4f, 2f), Size((size.width * k - 8f).coerceAtLeast(0f), (size.height - 2.dp.toPx()) * 0.35f), r)
         }.semantics { contentDescription = "Level $lv, $into of $need XP to the next level" })
     }
 }
@@ -126,101 +128,127 @@ fun Confetti(trigger: Int, modifier: Modifier = Modifier) {
     }
 }
 
-
 /** The XP balance pill: a little clay coin and the number. */
 @Composable
 fun XpPill(balance: Int, modifier: Modifier = Modifier) {
-    Row(modifier.clip(RoundedCornerShape(50)).background(Color(0xE6FFFFFF)).border(1.5.dp, Color(0xFFF2B35B), RoundedCornerShape(50)).padding(start = 4.dp, end = 12.dp, top = 4.dp, bottom = 4.dp),
-        verticalAlignment = Alignment.CenterVertically) {
+    Row(modifier.claySurface(Gel.Cream, 18.dp, depth = 3.dp).padding(start = 4.dp, end = 12.dp, top = 3.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
         GelOrb(Modifier.size(26.dp), Gel.Orange) { Icon(Icons.Rounded.Star, null, tint = Color.White, modifier = Modifier.size(16.dp)) }
         Spacer(Modifier.width(6.dp))
         Text("$balance", style = AeroType.H2.copy(color = Color(0xFF9A5200), fontSize = 17.sp))
     }
 }
 
+fun Shop.Rarity.gel() = when (this) { Shop.Rarity.COMMON -> Gel.Cream; Shop.Rarity.RARE -> Gel.Aqua; Shop.Rarity.EPIC -> Gel.Purple; Shop.Rarity.LEGENDARY -> Gel.Gold }
+
+private const val MYSTERY_TAB = 4
+
 @Composable
 fun ShopScreen(store: Store, sfx: Sfx, onBack: () -> Unit) {
     val lou = rememberLou(sfx)
     val scope = rememberCoroutineScope()
-    var preview by remember { mutableStateOf<Shop.Item?>(null) }
+    var tab by remember { mutableIntStateOf(0) }
+    var selected by remember { mutableStateOf<Shop.Item?>(null) }
     var confetti by remember { mutableIntStateOf(0) }
-    var mysteryShake by remember { mutableStateOf(false) }
+    var boxState by remember { mutableIntStateOf(0) }       // 0 closed, 1 shaking, 2 open
+    var revealed by remember { mutableStateOf<Shop.Item?>(null) }
     BackHandler { onBack() }
     LaunchedEffect(Unit) {
-        lou.say(if (store.balance >= 80) "You've got ${store.balance} XP to spend. Dress me up!" else "Finish lessons to earn XP, then spend it here.", LouMood.Happy)
+        lou.say(if (store.balance >= 80) "You have ${store.balance} XP. Pick something for me to try on!" else "Finish lessons and games to earn XP. Then dress me up!", LouMood.Happy)
     }
     val eq = store.equipped
-    val outfit = LouOutfit(eq[Shop.Slot.HAT], eq[Shop.Slot.FACE], eq[Shop.Slot.SKIN]).let { o ->
-        when (preview?.slot) {
-            Shop.Slot.HAT -> o.copy(hat = preview!!.id); Shop.Slot.FACE -> o.copy(face = preview!!.id); Shop.Slot.SKIN -> o.copy(skin = preview!!.id); else -> o
-        }
-    }
+    val worn = LouOutfit(eq[Shop.Slot.HAT], eq[Shop.Slot.FACE], eq[Shop.Slot.SKIN], eq[Shop.Slot.NECK])
+    val outfit = selected?.let { s ->
+        when (s.slot) { Shop.Slot.HAT -> worn.copy(hat = s.id); Shop.Slot.FACE -> worn.copy(face = s.id); Shop.Slot.SKIN -> worn.copy(skin = s.id); Shop.Slot.NECK -> worn.copy(neck = s.id) }
+    } ?: worn
     fun celebrate(item: Shop.Item, mystery: Boolean) {
         confetti++; sfx.complete(); lou.react(LouMood.Cheer)
-        lou.say(if (mystery) "Mystery box: ${item.name}! ${item.blurb}" else "${item.name}! ${item.blurb}", LouMood.Cheer)
-        preview = null
+        lou.say(if (mystery) "Surprise! ${item.name}! ${item.blurb}" else "${item.name}! ${item.blurb}", LouMood.Cheer)
         scope.launch { delay(2200); lou.mood = LouMood.Happy }
     }
     val land = isLandscape()
+
+    val stage: @Composable (Modifier) -> Unit = { m ->
+        Column(m.clayCard(28.dp).drawBehind {
+            // a soft spotlight from above onto the pedestal
+            drawRect(Brush.verticalGradient(listOf(Color(0xFFE8F4FC), Color(0xFFFFFFFF))))
+            drawOval(Brush.radialGradient(listOf(Color(0x66FFF2C2), Color(0x00FFF2C2)), Offset(size.width / 2, size.height * 0.35f), size.width * 0.5f),
+                Offset(size.width * 0.1f, 0f), Size(size.width * 0.8f, size.height * 0.75f))
+        }.padding(14.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(Modifier.fillMaxWidth().height(if (land) 150.dp else 196.dp), contentAlignment = Alignment.BottomCenter) {
+                // clay pedestal
+                Box(Modifier.width(190.dp).height(34.dp).claySurface(Gel.Off, 17.dp, depth = 6.dp))
+                Lou(Modifier.padding(bottom = 18.dp).size(if (land) 150.dp else 190.dp, if (land) 130.dp else 166.dp), mood = lou.mood, mouthOpen = lou.mouth, outfit = outfit)
+            }
+            lou.bubble?.let { LouBubble(it, Modifier.fillMaxWidth().height(84.dp).verticalScroll(rememberScrollState())) }
+            AnimatedContent(selected, transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(120)) }, label = "sel") { s ->
+                if (s == null) LevelBar(store.xp, Modifier.fillMaxWidth())
+                else Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(s.name, style = AeroType.H2, modifier = Modifier.weight(1f))
+                        Box(Modifier.claySurface(s.rarity.gel(), 10.dp, depth = 2.dp).padding(horizontal = 8.dp, vertical = 3.dp)) {
+                            Text(s.rarity.label.uppercase(), style = AeroType.Caps.copy(color = s.rarity.gel().text, fontSize = 10.sp))
+                        }
+                    }
+                    val owned = s.id in store.owned; val wearing = store.equipped[s.slot] == s.id
+                    when {
+                        wearing -> GelButton("Take it off", { sfx.toggleOff(); store.unequip(s.slot); selected = null }, Modifier.fillMaxWidth(), gel = Gel.Silver)
+                        owned -> GelButton("Wear it", { sfx.toggleOn(); store.equip(s); lou.react(LouMood.Happy) }, Modifier.fillMaxWidth(), gel = Gel.Grass)
+                        store.balance >= s.price -> GelButton("Buy for ★ ${s.price}", { if (store.buy(s)) celebrate(s, false) }, Modifier.fillMaxWidth(), gel = Gel.Orange)
+                        else -> GelButton("Need ${s.price - store.balance} more XP", { sfx.miss(); lou.say("Play a mini game or finish a lesson to earn ${s.price - store.balance} more XP!", LouMood.Encourage) },
+                            Modifier.fillMaxWidth(), gel = Gel.Off)
+                    }
+                }
+            }
+        }
+    }
+    val tabs: @Composable () -> Unit = {
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            (Shop.Slot.entries.map { it.label } + "Mystery box").forEachIndexed { i, label ->
+                ClayChip(label, { sfx.tap(); tab = i; selected = null }, gel = if (tab == i) Gel.Aqua else Gel.Cream, fontSize = 14,
+                    description = "$label${if (tab == i) ", selected" else ""}")
+            }
+        }
+    }
+    val shelf: @Composable (Int) -> Unit = { cols ->
+        if (tab == MYSTERY_TAB) MysteryBox(store, sfx, boxState, revealed) {
+            if (boxState != 0) return@MysteryBox
+            boxState = 1   // set before launching, so a double tap can't open (and pay for) two boxes
+            scope.launch {
+                sfx.select(); delay(900)
+                val got = store.openMystery()
+                if (got != null) { revealed = got; boxState = 2; celebrate(got, true) } else boxState = 0
+            }
+        }.also { if (boxState == 2) LaunchedEffect(revealed) { delay(3500); boxState = 0; revealed = null } }
+        else Shop.items.filter { it.slot == Shop.Slot.entries[tab] }.chunked(cols).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(bottom = 10.dp)) {
+                row.forEach { item ->
+                    ItemTile(item, store, selected?.id == item.id, Modifier.weight(1f)) {
+                        sfx.tap(); selected = if (selected?.id == item.id) null else item
+                        if (selected != null) lou.say(item.blurb, LouMood.Happy)
+                    }
+                }
+                repeat(cols - row.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+    }
+
     AeroBackground(photo = true) {
         Column(Modifier.fillMaxSize().sideSafe().statusBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back", tint = AeroColors.Ink, modifier = Modifier.size(44.dp).clip(CircleShape).clickable { onBack() }.padding(10.dp))
-                Text("Lou's Shop", style = AeroType.Title.copy(color = MenuInk, shadow = MenuGlow), modifier = Modifier.weight(1f).padding(start = 4.dp))
+                ClayIconButton(Icons.AutoMirrored.Rounded.ArrowBack, "Back", onBack)
+                Text("Lou's Shop", style = AeroType.Title.copy(color = MenuInk, shadow = MenuGlow), modifier = Modifier.weight(1f).padding(start = 10.dp))
                 XpPill(store.balance)
             }
             BoxWithConstraints(Modifier.weight(1f)) {
-                val cols = if (maxWidth > 600.dp) 5 else 3
-                val hero: @Composable (Modifier) -> Unit = { m ->
-                    Column(m.glass(24.dp).padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Lou(Modifier.size(170.dp, 150.dp), mood = lou.mood, mouthOpen = lou.mouth, outfit = outfit)
-                        }
-                        lou.bubble?.let { LouBubble(it, Modifier.fillMaxWidth().height(64.dp)) }
-                        LevelBar(store.xp, Modifier.fillMaxWidth())
-                        // mystery box: the gamble
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            val shake = remember { Animatable(0f) }
-                            LaunchedEffect(mysteryShake) { if (mysteryShake) { repeat(6) { shake.animateTo(if (it % 2 == 0) 14f else -14f, tween(60)) }; shake.animateTo(0f, spring(0.4f, 600f)) } }
-                            GelOrb(Modifier.size(52.dp).graphicsLayer { rotationZ = shake.value }, Gel.Aqua) { Text("?", style = AeroType.Title.copy(color = Color.White)) }
-                            Spacer(Modifier.width(10.dp))
-                            Column(Modifier.weight(1f)) {
-                                Text("Mystery box", style = AeroType.H2.copy(fontSize = 16.sp))
-                                Text("A random item you don't own", style = AeroType.Small)
-                            }
-                            val left = Shop.items.count { it.id !in store.owned }
-                            GelButton(if (left == 0) "All owned" else "★ ${Shop.MYSTERY_PRICE}", {
-                                scope.launch {
-                                    mysteryShake = true; sfx.select(); delay(520); mysteryShake = false
-                                    store.openMystery()?.let { celebrate(it, true) }
-                                }
-                            }, Modifier.width(104.dp), gel = Gel.Orange, enabled = left > 0 && store.balance >= Shop.MYSTERY_PRICE, height = 40.dp)
-                        }
-                    }
-                }
-                val shelves: @Composable () -> Unit = {
-                    Shop.Slot.entries.forEach { slot ->
-                        Text(slot.label.uppercase(), style = AeroType.Caps.copy(color = MenuInk, shadow = MenuGlow), modifier = Modifier.padding(top = 6.dp, start = 4.dp))
-                        Shop.items.filter { it.slot == slot }.chunked(cols).forEach { row ->
-                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                row.forEach { item ->
-                                    ItemCard(item, store, preview?.id == item.id, Modifier.weight(1f),
-                                        onPreview = { sfx.tap(); preview = if (preview?.id == item.id) null else item; if (preview != null) lou.say("${item.name}: ${item.blurb}", LouMood.Happy) },
-                                        onBuy = { if (store.buy(item)) celebrate(item, false) else { sfx.miss(); lou.say("You need ${item.price - store.balance} more XP. A lesson or two will do it!", LouMood.Encourage) } },
-                                        onWear = { sfx.toggleOn(); if (store.equipped[slot] == item.id) store.unequip(slot) else store.equip(item) })
-                                }
-                                repeat(cols - row.size) { Spacer(Modifier.weight(1f)) }
-                            }
-                        }
-                    }
-                    Spacer(Modifier.height(20.dp))
-                }
+                val cols = if (maxWidth > 600.dp) 4 else 3
                 if (land) Row(Modifier.fillMaxSize().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    hero(Modifier.weight(0.85f).verticalScroll(rememberScrollState()).navigationBarsPadding())
-                    Column(Modifier.weight(1.15f).verticalScroll(rememberScrollState()).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(10.dp)) { shelves() }
+                    stage(Modifier.weight(0.9f).verticalScroll(rememberScrollState()).navigationBarsPadding())
+                    Column(Modifier.weight(1.1f).verticalScroll(rememberScrollState()).navigationBarsPadding()) { tabs(); shelf(cols) }
                 } else Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).navigationBarsPadding().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    hero(Modifier.fillMaxWidth())
-                    shelves()
+                    stage(Modifier.fillMaxWidth())
+                    tabs()
+                    Column { shelf(cols) }
+                    Spacer(Modifier.height(16.dp))
                 }
             }
         }
@@ -229,30 +257,72 @@ fun ShopScreen(store: Store, sfx: Sfx, onBack: () -> Unit) {
 }
 
 @Composable
-private fun ItemCard(item: Shop.Item, store: Store, previewing: Boolean, modifier: Modifier, onPreview: () -> Unit, onBuy: () -> Unit, onWear: () -> Unit) {
+private fun ItemTile(item: Shop.Item, store: Store, chosen: Boolean, modifier: Modifier, onClick: () -> Unit) {
     val owned = item.id in store.owned
     val wearing = store.equipped[item.slot] == item.id
-    val lift by animateFloatAsState(if (previewing) 1f else 0f, spring(0.6f, 500f), label = "lift")
-    Column(modifier.graphicsLayer { translationY = -lift * 4.dp.toPx(); scaleX = 1f + lift * 0.03f; scaleY = 1f + lift * 0.03f }
-        .glass(18.dp).border(if (previewing || wearing) 2.5.dp else 0.dp, if (wearing) AeroColors.Leaf else AeroColors.Primary, RoundedCornerShape(18.dp))
-        .clip(RoundedCornerShape(18.dp)).clickable(onClick = onPreview).padding(8.dp)
-        .semantics { contentDescription = "${item.name}, ${if (owned) if (wearing) "wearing" else "owned" else "${item.price} XP"}" },
+    val src = remember { MutableInteractionSource() }
+    val p = clayPress(src)
+    val lift by animateFloatAsState(if (chosen) 1f else 0f, spring(0.55f, 500f), label = "lift")
+    Column(modifier.graphicsLayer { translationY = -lift * 5.dp.toPx(); scaleX = 1f + lift * 0.04f; scaleY = 1f + lift * 0.04f }
+        .claySurface(Gel.Cream, 18.dp, depth = 5.dp, press = p, outline = if (chosen) AeroColors.Primary else item.rarity.gel().edge)
+        .clip(RoundedCornerShape(18.dp)).clickable(src, null, role = Role.Button, onClick = onClick)
+        .semantics { contentDescription = "${item.name}, ${item.rarity.label}, ${if (owned) if (wearing) "wearing" else "owned" else "${item.price} XP"}" }
+        .padding(start = 6.dp, end = 6.dp, top = 8.dp, bottom = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Box(Modifier.fillMaxWidth().height(62.dp), contentAlignment = Alignment.Center) {
-            if (item.slot == Shop.Slot.SKY) {
-                Box(Modifier.size(70.dp, 54.dp).clip(RoundedCornerShape(12.dp)).background(Brush.verticalGradient(listOf(Color(0xFF8ED0F5), Color(0xFFCDEBFA))))) {
-                    com.beatpath.app.ui.aero.SkyTint(item.id, Modifier.fillMaxSize())
-                }
-            } else {
-                val o = when (item.slot) { Shop.Slot.HAT -> LouOutfit(hat = item.id); Shop.Slot.FACE -> LouOutfit(face = item.id); else -> LouOutfit(skin = item.id) }
-                Lou(Modifier.size(72.dp, 62.dp), outfit = o, reduceMotion = true)
-            }
-        }
+        val o = when (item.slot) { Shop.Slot.HAT -> LouOutfit(hat = item.id); Shop.Slot.FACE -> LouOutfit(face = item.id); Shop.Slot.NECK -> LouOutfit(neck = item.id); else -> LouOutfit(skin = item.id) }
+        Lou(Modifier.size(84.dp, 74.dp), outfit = o, reduceMotion = true)
         Text(item.name, style = AeroType.Label, textAlign = TextAlign.Center, maxLines = 2, modifier = Modifier.height(34.dp))
         when {
-            wearing -> GelButton("Wearing", onWear, Modifier.fillMaxWidth(), gel = Gel.Grass, height = 32.dp)
-            owned -> GelButton(if (item.slot == Shop.Slot.SKY) "Use" else "Wear", onWear, Modifier.fillMaxWidth(), gel = Gel.Silver, height = 32.dp)
-            else -> GelButton("★ ${item.price}", onBuy, Modifier.fillMaxWidth(), gel = if (store.balance >= item.price) Gel.Orange else Gel.Off, height = 32.dp)
+            wearing -> Text("✓ Wearing", style = AeroType.Label.copy(color = AeroColors.Leaf))
+            owned -> Text("Owned", style = AeroType.Label.copy(color = AeroColors.Ink2))
+            else -> Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Rounded.Star, null, tint = if (store.balance >= item.price) Color(0xFFF2852B) else Color(0xFFAEB9C1), modifier = Modifier.size(16.dp))
+                Text(" ${item.price}", style = AeroType.Label.copy(color = if (store.balance >= item.price) Color(0xFF9A5200) else AeroColors.Ink2))
+            }
         }
+    }
+}
+
+/** A clay gift box: it shakes, the lid pops off, and the prize floats up. */
+@Composable
+private fun MysteryBox(store: Store, sfx: Sfx, state: Int, revealed: Shop.Item?, onOpen: () -> Unit) {
+    val shake = remember { Animatable(0f) }
+    val lid = remember { Animatable(0f) }
+    LaunchedEffect(state) {
+        when (state) {
+            1 -> repeat(8) { shake.animateTo(if (it % 2 == 0) 1f else -1f, tween(55)) }.also { shake.animateTo(0f, spring(0.4f, 600f)) }
+            2 -> lid.animateTo(1f, spring(dampingRatio = 0.5f, stiffness = 180f))
+            else -> lid.snapTo(0f)
+        }
+    }
+    val left = Shop.items.count { it.id !in store.owned }
+    Column(Modifier.fillMaxWidth().clayCard(24.dp).padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Box(Modifier.size(200.dp, 170.dp), contentAlignment = Alignment.BottomCenter) {
+            if (revealed != null) {
+                val o = when (revealed.slot) { Shop.Slot.HAT -> LouOutfit(hat = revealed.id); Shop.Slot.FACE -> LouOutfit(face = revealed.id); Shop.Slot.NECK -> LouOutfit(neck = revealed.id); else -> LouOutfit(skin = revealed.id) }
+                Lou(Modifier.padding(bottom = (40 + 60 * lid.value).dp).size(96.dp, 84.dp).graphicsLayer { alpha = lid.value; scaleX = 0.5f + lid.value * 0.5f; scaleY = 0.5f + lid.value * 0.5f },
+                    outfit = o, mood = LouMood.Cheer)
+            }
+            Canvas(Modifier.size(150.dp, 120.dp).graphicsLayer { rotationZ = shake.value * 6f }) {
+                val w = size.width; val h = size.height
+                // box body
+                drawRoundRect(Color(0xFF1A6FAE), Offset(w * 0.08f, h * 0.38f), Size(w * 0.84f, h * 0.62f), CornerRadius(16f))
+                drawRoundRect(Brush.verticalGradient(listOf(Color(0xFF6CC4F2), Color(0xFF2E9BE0)), h * 0.34f, h), Offset(w * 0.08f, h * 0.34f), Size(w * 0.84f, h * 0.6f), CornerRadius(16f))
+                drawRect(Brush.verticalGradient(listOf(Color(0xFFFF9EC4), Color(0xFFEF5B9C))), Offset(w * 0.44f, h * 0.34f), Size(w * 0.12f, h * 0.6f))
+                // lid lifts and tilts away
+                val ly = -lid.value * h * 0.9f
+                rotate(lid.value * 28f, Offset(w * 0.9f, h * 0.3f + ly)) {
+                    drawRoundRect(Color(0xFF1A6FAE), Offset(w * 0.02f, h * 0.24f + ly), Size(w * 0.96f, h * 0.18f), CornerRadius(12f))
+                    drawRoundRect(Brush.verticalGradient(listOf(Color(0xFF8ED4F7), Color(0xFF3FA9E8)), h * 0.2f + ly, h * 0.38f + ly), Offset(w * 0.02f, h * 0.2f + ly), Size(w * 0.96f, h * 0.18f), CornerRadius(12f))
+                    drawRect(Color(0xFFEF5B9C), Offset(w * 0.44f, h * 0.2f + ly), Size(w * 0.12f, h * 0.18f))
+                    drawOval(Color(0xFFFF9EC4), Offset(w * 0.28f, h * 0.06f + ly), Size(w * 0.22f, h * 0.16f))
+                    drawOval(Color(0xFFFF9EC4), Offset(w * 0.5f, h * 0.06f + ly), Size(w * 0.22f, h * 0.16f))
+                }
+            }
+        }
+        Text(if (revealed != null) "You got: ${revealed.name}!" else "A surprise item for Lou", style = AeroType.H2, textAlign = TextAlign.Center)
+        Text(if (left == 0) "You own everything. Wow!" else "Something you don't have yet. Rare things are rarer!", style = AeroType.Body, textAlign = TextAlign.Center)
+        GelButton(if (left == 0) "All owned" else "Open for ★ ${Shop.MYSTERY_PRICE}", onOpen, Modifier.fillMaxWidth(), gel = Gel.Orange,
+            enabled = left > 0 && store.balance >= Shop.MYSTERY_PRICE && state == 0)
     }
 }

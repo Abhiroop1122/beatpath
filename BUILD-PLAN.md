@@ -2,19 +2,17 @@
 
 This covers where the app stands, what to build next, and how to add lessons.
 
-## 1. Where we are (1.0.0)
-
-Version 1.0.0 is the build that was planned as 0.4. It added a course-complete card, the Practice tab and spaced review (section 2).
+## 1. Where we are (1.2.0)
 
 | Area | State |
 |---|---|
-| Course | 81 lessons: 5 ear lessons, then 76 Studio lessons in 18 levels, from a first beat to an 8-bar hook with harmony. |
-| Studio | An FL-style Channel Rack with 4 drum kits and a Piano roll with an instrument picker for each channel. MIDI and WAV export. |
-| Guide | Lou gives a "Today's idea" card, word chips that explain terms, a 3-step hint ladder with "Back to the task", and theory and FL tips. |
-| Look | Frutiger Aero: sky-blue menu art with floating bubbles, frosted-glass panels and compact buttons, with portrait and landscape layouts. |
-| Quality | 27 unit tests and UI check scripts in `android/tools/ui-check/`. |
-| After the course | The course-complete card, a Practice tab with a Daily mix, 7 endless drills and melody dictation, and spaced review after 1, 3 and 7 days. |
-| Not done | A release signing key, audio latency measured on a real phone, and audio focus (pausing for calls and other apps). |
+| Course | 125 lessons: 16 Music basics, 5 ear lessons, 98 Studio lessons in 22 levels, and 6 Ear training II lessons after level 10. Every lesson was reviewed for an 8-year-old: one idea at a time, only ideas taught earlier, every new word explained. |
+| Studio tab | 5 mini games with Lou (Sky Hop, Beat Run, Balloon Pop, Chord Cake, Echo Lou), free play and the song maker (loops A, B and C arranged into 8 or 16 bars). Lessons live only on the Learn path. |
+| Rewards | XP from lessons, practice and games. 3 daily quests, streak chests on days 3, 7, 14 and 30, levels and titles, and Lou's Shop (hats, glasses, extras, colors, mystery box). |
+| Look | Clay everywhere outside the FL windows: cards, buttons, chips, switches and dialogs. The Channel Rack, Piano roll and transport keep FL's flat look. Clay tick and star bubbles on the path. Sad Lou with a tear when you try to leave a lesson. |
+| Phones | Audio focus (pauses for calls and other apps), stop on headphone unplug, Calm motion setting, and opt-in crash reports shared only through the share sheet. |
+| Quality | Unit tests for every lesson, the packs, the shop and the practice generators; `walk.py` plays every lesson like a child (hint, wrong answer, retry, leave). |
+| Not done | Audio latency measured on a real phone, a release signing key, the Play Store account. |
 
 ## 2. After the last lesson (built in 1.0)
 
@@ -105,7 +103,7 @@ Add an id in `data/Store.kt → EarIds` and a `when` branch in `EarLessons.spec(
 3. Genre grooves: lo-fi, house, trap and pop, using the drum kits.
 4. Bass lines II: walking bass, octave bass, 808 glides.
 5. Melody III: call and response, a countermelody across sections.
-6. Arranging: intro, build, drop and breakdown. This needs Song mode (1.4).
+6. Arranging: intro, build, drop and breakdown, using the song maker.
 7. Ear training II: intervals, chord progressions, rhythm dictation.
 
 ## 4. Roadmap
@@ -114,11 +112,9 @@ Add an id in `data/Store.kt → EarIds` and a `when` branch in `EarLessons.spec(
 |---|---|---|
 | 1.0 (done) | Practice | Course-complete card, endless practice (ear drills, melody dictation, Daily mix), spaced review. |
 | 1.1 (done) | Music basics | 16 theory lessons before the ear unit, on a rainbow keyboard, with the rainbow carried into the Piano roll. |
-| 1.2 | Real phones | Measure audio latency on 2 or 3 phones and move to Oboe/AAudio if it's over about 40 ms. Pause for calls and other apps (audio focus), stop on headphone unplug, add a reduce-motion setting that turns the bubbles off, and test with TalkBack. |
-| 1.3 | Content pack 1 | Chord voicings and Ear training II (about 12 lessons), with new glossary terms. |
-| 1.4 | Song mode | Chain patterns A, B and C into 8 to 16 bars (the data model already has `playlist` and `songMode`) and export the whole song as MIDI or WAV. The Arranging pack depends on this. |
-| 1.5 | Content packs 2 and 3 | Genre grooves, Bass II and Melody III, with kits and instrument presets for each genre. |
-| 1.6 | Release prep | A release signing key and AAB, app icon variants, a privacy policy (no data leaves the phone today), opt-in crash reporting, and a Play Store listing with screenshots. |
+| 1.2 (done) | Games and polish | Mini games, song maker, quests and streak chests, a bigger shop, clay UI, content packs 1 to 3, Ear training II, audio focus, a new icon, PRIVACY.md and a store listing draft. |
+| 1.3 | Real phones | Measure audio latency on 2 or 3 phones and move to Oboe/AAudio if it's over about 40 ms. A full TalkBack pass on a real phone. (Audio focus, headphone unplug and Calm motion shipped in 1.2.) |
+| 1.4 | Release | The owner creates the release signing key, then `./gradlew bundleRelease` for the AAB, store screenshots and the Play Console listing (draft in docs/play-store-listing.md). (Icon, privacy policy and crash reports shipped in 1.2.) |
 | 2.0 | Play Store | Internal test track, then a closed beta, then production. |
 
 Later ideas:

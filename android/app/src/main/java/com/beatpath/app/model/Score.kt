@@ -133,7 +133,11 @@ data class Project(
             val notes = playlist.flatMap { clip ->
                 val p = patternAt(clip.pattern) ?: return@flatMap emptyList()
                 val ch = p.channel(k)
-                if (ch.muted) emptyList() else ch.notes.map { it.copy(startTick = it.startTick + clip.startBar * TICKS_PER_BAR) }
+                // a clip plays until its loop ends or the next clip starts, whichever comes first, so clips never stack
+                val next = playlist.filter { it.startBar > clip.startBar }.minOfOrNull { it.startBar } ?: Int.MAX_VALUE
+                val lenTicks = (minOf(clip.startBar + p.bars, next) - clip.startBar) * TICKS_PER_BAR
+                if (ch.muted) emptyList() else ch.notes.filter { it.startTick < lenTicks }
+                    .map { it.copy(startTick = it.startTick + clip.startBar * TICKS_PER_BAR, durationTicks = minOf(it.durationTicks, lenTicks - it.startTick)) }
             }.filter { it.startTick < bars * TICKS_PER_BAR }
             base.copy(muted = false, notes = notes)
         }
